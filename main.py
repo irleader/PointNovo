@@ -10,8 +10,13 @@ def main():
     data_loader = torch.utils.data.DataLoader(dataset=train_set,
                                               batch_size=deepnovo_config.batch_size,
                                               shuffle=True,
-                                              num_workers=deepnovo_config.num_workers,
-                                              collate_func=collate_func)
+                                              num_workers=6,
+                                              collate_fn=collate_func)
+    for i, temp in enumerate(data_loader):
+        for a in temp:
+            print(a.shape)
+        if i > 10:
+            break
     logger.info("successfully create data loader")
 
 if __name__ == '__main__':

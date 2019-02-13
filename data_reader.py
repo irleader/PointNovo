@@ -86,7 +86,8 @@ class DeepNovoTrainDataset(Dataset):
         """
         logger.info(f"input spectrum file: {spectrum_filename}")
         logger.info(f"input feature file: {feature_filename}")
-        self.input_spectrum_handle = open(spectrum_filename, 'r')
+        self.spectrum_filename = spectrum_filename
+        self.input_spectrum_handle = None
         self.feature_list = []
         self.spectrum_location_dict = {}
         self.transform = transform
@@ -100,14 +101,15 @@ class DeepNovoTrainDataset(Dataset):
             logger.info("build spectrum location from scratch")
             spectrum_location_dict = {}
             line = True
-            while line:
-                current_location = self.input_spectrum_handle.tell()
-                line = self.input_spectrum_handle.readline()
-                if "BEGIN IONS" in line:
-                    spectrum_location = current_location
-                elif "SCANS=" in line:
-                    scan = re.split('[=\r\n]', line)[1]
-                    spectrum_location_dict[scan] = spectrum_location
+            with open(spectrum_filename, 'r') as f:
+                while line:
+                    current_location = f.tell()
+                    line = f.readline()
+                    if "BEGIN IONS" in line:
+                        spectrum_location = current_location
+                    elif "SCANS=" in line:
+                        scan = re.split('[=\r\n]', line)[1]
+                        spectrum_location_dict[scan] = spectrum_location
             self.spectrum_location_dict = spectrum_location_dict
             with open(spectrum_location_file, 'wb') as fw:
                 pickle.dump(self.spectrum_location_dict, fw)
@@ -126,7 +128,7 @@ class DeepNovoTrainDataset(Dataset):
             seq_index = header.index(deepnovo_config.col_raw_sequence)
             scan_index = header.index(deepnovo_config.col_scan_list)
             for line in reader:
-                mass = (line[mz_index] - deepnovo_config.mass_H) * line[z_index]
+                mass = (float(line[mz_index]) - deepnovo_config.mass_H) * float(line[z_index])
                 ok, peptide = parse_raw_sequence(line[seq_index])
                 if not ok:
                     skipped_by_ptm += 1
@@ -139,16 +141,20 @@ class DeepNovoTrainDataset(Dataset):
                 if len(peptide) >= deepnovo_config.MAX_LEN:
                     skipped_by_length += 1
                     logger.debug(f"{line[seq_index]} skipped by length")
+                    continue
                 new_feature = DDAFeature(feature_id=line[feature_id_index],
-                                         mz=line[mz_index],
-                                         z=line[z_index],
-                                         rt_mean=line[rt_mean_index],
+                                         mz=float(line[mz_index]),
+                                         z=float(line[z_index]),
+                                         rt_mean=float(line[rt_mean_index]),
                                          peptide=peptide,
                                          scan=line[scan_index],
                                          mass=mass)
                 self.feature_list.append(new_feature)
         logger.info(f"read {len(self.feature_list)} features, {skipped_by_mass} skipped by mass, "
                     f"{skipped_by_ptm} skipped by unknown modification, {skipped_by_length} skipped by length")
+
+    def __len__(self):
+        return len(self.feature_list)
 
     def close(self):
         self.input_spectrum_handle.close()
@@ -162,7 +168,7 @@ class DeepNovoTrainDataset(Dataset):
             mz_float = float(mz)
             intensity_float = float(intensity)
             # skip an ion if its mass > MZ_MAX
-            if mz_float > self.MZ_MAX:
+            if mz_float > deepnovo_config.MZ_MAX:
                 line = self.input_spectrum_handle.readline()
                 continue
             mz_list.append(mz_float)
@@ -193,7 +199,7 @@ class DeepNovoTrainDataset(Dataset):
 
         peptide_id_list = [deepnovo_config.vocab[x] for x in feature.peptide]
         forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
-        forward_id_target = [peptide_id_list] + [deepnovo_config.EOS_ID]
+        forward_id_target = peptide_id_list + [deepnovo_config.EOS_ID]
         candidate_intensity_forward = []
         prefix_mass = 0.
         for i, id in enumerate(forward_id_input):
@@ -209,7 +215,8 @@ class DeepNovoTrainDataset(Dataset):
             suffix_mass += deepnovo_config.mass_ID[id]
             candidate_intensity = get_candidate_intensity(spectrum_original_backward, feature.mass, suffix_mass, 1)
             candidate_intensity_backward.append(candidate_intensity)
-        assert len(candidate_intensity_backward) == len(candidate_intensity_forward) == len(forward_id_target) == len(backward_id_target)
+        assert len(candidate_intensity_backward) == len(candidate_intensity_forward) == len(forward_id_target) == len(backward_id_target), \
+            f"{len(candidate_intensity_backward)} {len(candidate_intensity_forward)} {len(forward_id_target)} {len(backward_id_target)}"
         return TrainData(spectrum_holder=spectrum_holder,
                          forward_id_input=forward_id_input,
                          forward_id_target=forward_id_target,
@@ -219,11 +226,10 @@ class DeepNovoTrainDataset(Dataset):
                          backward_candidate_intensity=candidate_intensity_backward)
 
     def __getitem__(self, idx):
+        if self.input_spectrum_handle is None:
+            self.input_spectrum_handle = open(self.spectrum_filename, 'r')
         feature = self.feature_list[idx]
         return self._get_feature(feature)
-
-    def __del__(self):
-        self.close()
 
 
 def collate_func(train_data_list):
@@ -235,7 +241,7 @@ def collate_func(train_data_list):
     # sort data by seq length (decreasing order)
     train_data_list.sort(key=lambda x: len(x.forward_id_input), reverse=True)
     batch_max_seq_len = len(train_data_list[0].forward_id_input)
-    intensity_shape = train_data_list[0].forward_candidate_intensity.shape
+    intensity_shape = train_data_list[0].forward_candidate_intensity[0].shape
     spectrum_holder = [x.spectrum_holder for x in train_data_list]
     spectrum_holder = np.stack(spectrum_holder) # [batch_size, mz_size]
     spectrum_holder = torch.from_numpy(spectrum_holder)
