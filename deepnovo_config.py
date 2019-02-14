@@ -95,6 +95,7 @@ tf.app.flags.DEFINE_integer("multiprocessor",
                             "Use multi processors to read data during training.")
 
 FLAGS = tf.app.flags.FLAGS
+train_dir = FLAGS.train_dir
 
 
 # ==============================================================================
@@ -111,7 +112,7 @@ _START_VOCAB = [_PAD, _GO, _EOS]
 PAD_ID = 0
 GO_ID = 1
 EOS_ID = 2
-
+assert PAD_ID == 0
 vocab_reverse = ['A',
                  'R',
                  'N',
@@ -252,22 +253,18 @@ print("l2_weight ", l2_weight)
 embedding_size = 512
 print("embedding_size ", embedding_size)
 
-num_layers = 1
+num_lstm_layers = 1
 num_units = 512
-print("num_layers ", num_layers)
+print("num_lstm_layers ", num_lstm_layers)
 print("num_units ", num_units)
 
-keep_conv = 0.75
-keep_dense = 0.5
-print("keep_conv ", keep_conv)
-print("keep_dense ", keep_dense)
+dropout_rate = 0.25
 
 batch_size = 32
 num_workers = 6
 print("batch_size ", batch_size)
 
-epoch_stop = 49 + 10#10 # 50 # 31800*32/(counter_train = 20568)
-print("epoch_stop ", epoch_stop)
+num_epoch = 50
 
 train_stack_size = 500 # 3000 # 5000
 valid_stack_size = 1500#1000 # 3000 # 5000
@@ -278,10 +275,8 @@ print("valid_stack_size ", valid_stack_size)
 print("test_stack_size ", test_stack_size)
 print("decode_stack_size ", decode_stack_size)
 
-steps_per_checkpoint = 10 # 100 # 2 # 4 # 200
-random_test_batches = 10
-print("steps_per_checkpoint ", steps_per_checkpoint)
-print("random_test_batches ", random_test_batches)
+steps_per_validation = 100 # 100 # 2 # 4 # 200
+print("steps_per_validation ", steps_per_validation)
 
 max_gradient_norm = 5.0
 print("max_gradient_norm ", max_gradient_norm)
@@ -311,8 +306,8 @@ topk_output = 1
 # DIA
 input_spectrum_file_train = "ABRF_DDA/spectrums.mgf"
 input_feature_file_train = "ABRF_DDA/features.csv.identified.train.nodup"
-input_spectrum_file_valid = "data.training/dia.pecan.hela.2018_03_29/training.spectrum.mgf"
-input_feature_file_valid = "data.training/dia.pecan.hela.2018_03_29/training_5mz_4to7.feature.csv.valid.nodup"
+input_spectrum_file_valid = "ABRF_DDA/spectrums.mgf"
+input_feature_file_valid = "ABRF_DDA/features.csv.identified.valid.nodup"
 input_spectrum_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.spectrum.mgf"
 input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.feature.csv"
 # denovo files
