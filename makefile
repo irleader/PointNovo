@@ -12,12 +12,12 @@ build: clean
 
 .PHONY: train
 train: pull
-	python deepnovo_main.py --train
+	python main.py --train
 
 .PHONY: denovo
 denovo:
-	python deepnovo_main.py --search_denovo
+	python main.py --search_denovo
 
-.PHONY: denovo_test
-denovo_test: train denovo
-	python deepnovo_main.py --test
+.PHONY: test
+denovo_test:
+	python main.py --test
