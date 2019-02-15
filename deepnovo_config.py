@@ -96,7 +96,7 @@ tf.app.flags.DEFINE_integer("multiprocessor",
 
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
-
+use_lstm = True
 
 # ==============================================================================
 # GLOBAL VARIABLES for VOCABULARY
@@ -352,6 +352,7 @@ col_precursor_charge = "z"
 col_rt_mean = "rt_mean"
 col_raw_sequence = "seq"
 col_scan_list = "scans"
+col_feature_area = "feature area"
 
 # predicted file column format
 pcol_feature_id = 0

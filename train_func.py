@@ -4,7 +4,7 @@ from torch import optim
 import torch.nn.functional as F
 import deepnovo_config
 from data_reader import DeepNovoTrainDataset, collate_func
-from model import DeepNovoModel, SpectrumCNN
+from model import DeepNovoModel, SpectrumCNN, device
 import time
 import math
 import logging
@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 forward_model_save_name = 'forward_deepnovo.pth'
 backward_model_save_name = 'backward_deepnovo.pth'
 spectrum_cnn_save_name = 'spectrum_cnn.pth'
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 logger.info(f"using device: {device}")
 
@@ -55,6 +54,36 @@ def focal_loss(logits, labels, ignore_index=-100, gamma=2.):
 
     per_entry_average_loss = torch.sum(per_entry_loss) / (num_valid_token + 1e-6)
     return per_entry_average_loss, num_valid_token
+
+
+def build_model(training=True):
+    """
+
+    :return:
+    """
+    spectrum_cnn = SpectrumCNN(dropout_p=deepnovo_config.dropout_rate).to(device)
+    forward_deepnovo = DeepNovoModel(deepnovo_config.vocab_size, deepnovo_config.num_ion, deepnovo_config.num_units,
+                                     deepnovo_config.dropout_rate)
+    backward_deepnovo = DeepNovoModel(deepnovo_config.vocab_size, deepnovo_config.num_ion, deepnovo_config.num_units,
+                                      deepnovo_config.dropout_rate)
+    # load pretrained params if exist
+    if os.path.exists(os.path.join(deepnovo_config.train_dir, forward_model_save_name)):
+        assert os.path.exists(os.path.join(deepnovo_config.train_dir, backward_model_save_name))
+        assert os.path.exists(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name))
+        logger.info("load pretrained model")
+        spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name)))
+        forward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, forward_model_save_name)))
+        backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name)))
+    else:
+        assert training, f"building model for testing, but could not found weight under directory " \
+                         f"{deepnovo_config.train_dir}"
+        logger.info("initialize a set of new parameters")
+
+    backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
+
+    backward_deepnovo = backward_deepnovo.to(device)
+    forward_deepnovo = forward_deepnovo.to(device)
+    return forward_deepnovo, backward_deepnovo, spectrum_cnn
 
 
 def validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_loader)->float:
@@ -113,27 +142,9 @@ def train():
                                                     shuffle=False,
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
-    spectrum_cnn = SpectrumCNN(dropout_p=deepnovo_config.dropout_rate).to(device)
-    forward_deepnovo = DeepNovoModel(deepnovo_config.vocab_size, deepnovo_config.num_ion, deepnovo_config.num_units,
-                                deepnovo_config.dropout_rate)
-    backward_deepnovo = DeepNovoModel(deepnovo_config.vocab_size, deepnovo_config.num_ion, deepnovo_config.num_units,
-                                deepnovo_config.dropout_rate)
-    # load pretrained params if exist
-    if os.path.exists(os.path.join(deepnovo_config.train_dir, forward_model_save_name)):
-        assert os.path.exists(os.path.join(deepnovo_config.train_dir, backward_model_save_name))
-        assert os.path.exists(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name))
-        logger.info("load pretrained model")
-        spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name)))
-        forward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, forward_model_save_name)))
-        backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name)))
-    else:
-        logger.info("initialize a set of new parameters")
-
-    backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
-
-    backward_deepnovo = backward_deepnovo.to(device)
-    forward_deepnovo = forward_deepnovo.to(device)
-    all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + list(spectrum_cnn.parameters())
+    forward_deepnovo, backward_deepnovo, spectrum_cnn = build_model()
+    all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
+                 list(spectrum_cnn.parameters())
     optimizer = optim.Adam(all_params, lr=1e-3)
 
     best_valid_loss = float("inf")
@@ -179,6 +190,10 @@ def train():
                 duration = time.time() - start_time
                 step_time = duration / deepnovo_config.steps_per_validation
                 loss_cpu = total_loss.item()
+                # evaluation mode
+                spectrum_cnn.eval()
+                forward_deepnovo.eval()
+                backward_deepnovo.eval()
                 validation_loss = validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_data_loader)
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
                             f"train perplexity: {perplexity(loss_cpu)}\t"
@@ -195,10 +210,11 @@ def train():
                                                                             backward_model_save_name))
                     torch.save(spectrum_cnn.state_dict(), os.path.join(deepnovo_config.train_dir,
                                                                        spectrum_cnn_save_name))
+                # back to train model
+                spectrum_cnn.train()
+                forward_deepnovo.train()
+                backward_deepnovo.train()
+
                 start_time = time.time()
 
     logger.info(f"best model at epoch {best_epoch} step {best_step}")
-
-
-
-

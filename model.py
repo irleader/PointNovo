@@ -1,11 +1,13 @@
 import torch
 import torch.nn as nn
+import numpy as np
 import torch.nn.functional as F
 import deepnovo_config
+from enum import Enum
 
 
 activation_func = F.relu
-
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class SpectrumCNN(nn.Module):
     def __init__(self, dropout_p=0.25):
@@ -96,7 +98,8 @@ class DeepNovoLSTM(nn.Module):
         :param candidate_intensity: [batch_size, T, 26, 8, 10]
         :param aa_input: [batch_size, T]
         :param state_tuple: (h0, c0), where each is [num_lstm_layer, batch_size, num_units] tensor
-        :return:
+        :return: a tuple
+        logit: [batch, T, 26]
         """
         ion_cnn_feature = self.ion_cnn(candidate_intensity)  # [batch, T, num_units]
         aa_embedded = self.embedding(aa_input)
@@ -108,3 +111,58 @@ class DeepNovoLSTM(nn.Module):
 
 # defalt use lstm
 DeepNovoModel = DeepNovoLSTM
+
+
+class Direction(Enum):
+    forward = 1
+    backward = 2
+
+
+class InferenceModelWrapper(object):
+    """
+    a wrapper class so that the beam search part of code is the same for both with lstm and without lstm model.
+    TODO(Rui): support no lstm branch here
+    """
+    def __init__(self, forward_model: DeepNovoModel, backward_model: DeepNovoModel, spectrum_cnn=None):
+        if spectrum_cnn is None:
+            assert deepnovo_config.use_lstm == False
+        self.forward_model = forward_model
+        self.backward_model = backward_model
+        self.spectrum_cnn = spectrum_cnn
+
+    def initial_hidden_state(self, spectrum_holder_list: list):
+        """
+        get initial hidden state
+        :param spectrum_holder: list of np.ndarray
+        :return: (h0, c0), each is [num_layer, batch, num_units] tensor
+        """
+        if not deepnovo_config.use_lstm:
+            return None
+        else:
+            temp = np.array(spectrum_holder_list)
+            with torch.no_grad():
+                spectrum_holder = torch.from_numpy(temp).to(device)
+                return self.spectrum_cnn(spectrum_holder)
+
+    def step(self, candidate_intensity, aa_input, prev_hidden_state_tuple, direction):
+        """
+        :param candidate_intensity: [batch, 1, 26, 8, 10]
+        :param aa_input: [batch, 1]
+        :param prev_hidden_state_tuple: (h, c), each is [batch, 1, num_units]
+        :param direction: enum class, whether forward or backward
+        :return: (log_prob, new_hidden_state)
+        log_prob: the pred log prob of shape [batch, 26]
+        new_hidden_state: new hidden state for next step
+        """
+        if direction == Direction.forward:
+            model = self.forward_model
+        else:
+            model = self.backward_model
+        assert candidate_intensity.size(1) == aa_input.size(1) == 1
+        with torch.no_grad():
+            logit, new_hidden_state = model(candidate_intensity, aa_input, prev_hidden_state_tuple)
+            logit = torch.squeeze(logit, dim=1)
+            log_prob = F.log_softmax(logit)
+        return log_prob, new_hidden_state
+
+

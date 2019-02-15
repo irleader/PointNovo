@@ -64,6 +64,14 @@ class DDAFeature:
     peptide: list
     scan: str
     mass: float
+    feature_area: str
+
+@dataclass
+class DenovoData:
+    spectrum_holder: np.ndarray
+    spectrum_original_forward: np.ndarray
+    spectrum_original_backward: np.ndarray
+    original_dda_feature: DDAFeature
 
 
 @dataclass
@@ -127,6 +135,7 @@ class DeepNovoTrainDataset(Dataset):
             rt_mean_index = header.index(deepnovo_config.col_rt_mean)
             seq_index = header.index(deepnovo_config.col_raw_sequence)
             scan_index = header.index(deepnovo_config.col_scan_list)
+            feature_area_index = header.index(deepnovo_config.col_feature_area)
             for line in reader:
                 mass = (float(line[mz_index]) - deepnovo_config.mass_H) * float(line[z_index])
                 ok, peptide = parse_raw_sequence(line[seq_index])
@@ -148,7 +157,8 @@ class DeepNovoTrainDataset(Dataset):
                                          rt_mean=float(line[rt_mean_index]),
                                          peptide=peptide,
                                          scan=line[scan_index],
-                                         mass=mass)
+                                         mass=mass,
+                                         feature_area=line[feature_area_index])
                 self.feature_list.append(new_feature)
         logger.info(f"read {len(self.feature_list)} features, {skipped_by_mass} skipped by mass, "
                     f"{skipped_by_ptm} skipped by unknown modification, {skipped_by_length} skipped by length")
@@ -301,3 +311,6 @@ def collate_func(train_data_list):
             batch_backward_id_input,
             batch_backward_id_target)
 
+
+class DeepNovoDenovoDataset(DeepNovoTrainDataset):
+    pass
