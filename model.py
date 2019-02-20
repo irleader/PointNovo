@@ -109,9 +109,37 @@ class DeepNovoLSTM(nn.Module):
         return logit, new_state_tuple
 
 
-# defalt use lstm
-DeepNovoModel = DeepNovoLSTM
+class DeepNovoWithoutLSTM(nn.Module):
+    def __init__(self, vocab_size, num_ion, num_units, dropout_rate=0.25):
+        super(DeepNovoWithoutLSTM, self).__init__()
+        self.num_units = num_units
+        self.num_ion = num_ion
+        self.vocab_size = vocab_size
+        self.output_layer = nn.Linear(deepnovo_config.num_units, deepnovo_config.vocab_size)
+        self.dropout = nn.Dropout(p=dropout_rate)
+        self.ion_cnn = IonCNN()
 
+    def forward(self, candidate_intensity, holder_1=None, holder_2=None):
+        """
+        has the same signature with corresponding method in WithLSTM model
+        :param holder_2: just a placeholder
+        :param holder_1: just a placeholder
+        :param candidate_intensity: [batch_size, T, 26, 8, 10]
+        :param aa_input: [batch_size, T]
+        :param state_tuple: (h0, c0), where each is [num_lstm_layer, batch_size, num_units] tensor
+        :return: a tuple
+        logit: [batch, T, 26]
+        """
+        ion_cnn_feature = self.ion_cnn(candidate_intensity)  # [batch, T, num_units]
+        logit = self.output_layer(ion_cnn_feature)
+        return logit, None
+
+
+# defalt use lstm
+if deepnovo_config.use_lstm:
+    DeepNovoModel = DeepNovoLSTM
+else:
+    DeepNovoModel = DeepNovoWithoutLSTM
 
 class Direction(Enum):
     forward = 1
@@ -132,7 +160,10 @@ class InferenceModelWrapper(object):
         # make sure all models are in eval mode
         self.forward_model.eval()
         self.backward_model.eval()
-        self.spectrum_cnn.eval()
+        if deepnovo_config.use_lstm:
+            self.spectrum_cnn.eval()
+        else:
+            assert spectrum_cnn is None
 
     def initial_hidden_state(self, spectrum_holder_list: list):
         """

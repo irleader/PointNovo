@@ -34,10 +34,6 @@ tf.app.flags.DEFINE_boolean("shared",
                             False,
                             "Set to True to use shared weights.")
 
-tf.app.flags.DEFINE_boolean("use_lstm",
-                            True,
-                            "Set to True to use lstm-model.")
-
 tf.app.flags.DEFINE_boolean("lstm_kmer",
                             False,
                             "Set to True to use lstm model on k-mers instead of full sequence.")
@@ -242,8 +238,8 @@ print("MAX_LEN ", MAX_LEN)
 num_ion = 8 # 2
 print("num_ion ", num_ion)
 
-l2_weight = 0.0
-print("l2_weight ", l2_weight)
+weight_decay = 0.0  # no weight decay lead to better result.
+print("weight_decay ", weight_decay)
 
 #~ encoding_cnn_size = 4 * (RESOLUTION//10) # 4 # proportion to RESOLUTION
 #~ encoding_cnn_filter = 4

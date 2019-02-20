@@ -11,7 +11,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 forward_model_save_name = 'forward_deepnovo.pth'
 backward_model_save_name = 'backward_deepnovo.pth'
 spectrum_cnn_save_name = 'spectrum_cnn.pth'
@@ -48,7 +47,7 @@ def focal_loss(logits, labels, ignore_index=-100, gamma=2.):
     neg_p_sub = torch.where(target_tensor > zeros, zeros, sigmoid_p)  # [batch, T, 26]
 
     per_token_loss = - (pos_p_sub ** gamma) * torch.log(torch.clamp(sigmoid_p, 1e-8, 1.0)) - \
-                          (neg_p_sub ** gamma) * torch.log(torch.clamp(1.0 - sigmoid_p, 1e-8, 1.0))
+                     (neg_p_sub ** gamma) * torch.log(torch.clamp(1.0 - sigmoid_p, 1e-8, 1.0))
     per_entry_loss = torch.sum(per_token_loss, dim=2)  # [batch, T]
     per_entry_loss = per_entry_loss * valid_token_mask  # masking out loss from pad tokens
 
@@ -61,17 +60,21 @@ def build_model(training=True):
 
     :return:
     """
-    spectrum_cnn = SpectrumCNN(dropout_p=deepnovo_config.dropout_rate).to(device)
     forward_deepnovo = DeepNovoModel(deepnovo_config.vocab_size, deepnovo_config.num_ion, deepnovo_config.num_units,
                                      deepnovo_config.dropout_rate)
     backward_deepnovo = DeepNovoModel(deepnovo_config.vocab_size, deepnovo_config.num_ion, deepnovo_config.num_units,
                                       deepnovo_config.dropout_rate)
+    if deepnovo_config.use_lstm:
+        spectrum_cnn = SpectrumCNN(dropout_p=deepnovo_config.dropout_rate).to(device)
+    else:
+        spectrum_cnn = None
     # load pretrained params if exist
     if os.path.exists(os.path.join(deepnovo_config.train_dir, forward_model_save_name)):
         assert os.path.exists(os.path.join(deepnovo_config.train_dir, backward_model_save_name))
-        assert os.path.exists(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name))
         logger.info("load pretrained model")
-        spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name)))
+        if deepnovo_config.use_lstm:
+            assert os.path.exists(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name))
+            spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name)))
         forward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, forward_model_save_name)))
         backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name)))
     else:
@@ -86,7 +89,7 @@ def build_model(training=True):
     return forward_deepnovo, backward_deepnovo, spectrum_cnn
 
 
-def validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_loader)->float:
+def validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_loader) -> float:
     with torch.no_grad():
         valid_loss = 0
         num_valid_samples = 0
@@ -109,9 +112,13 @@ def validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_loader)-
             batch_backward_id_input = batch_backward_id_input.to(device)
             batch_backward_id_target = batch_backward_id_target.to(device)
 
-            initial_state_tuple = spectrum_cnn(spectrum_holder)
+            if deepnovo_config.use_lstm:
+                initial_state_tuple = spectrum_cnn(spectrum_holder)
+            else:
+                initial_state_tuple = None
             forward_logit, _ = forward_deepnovo(batch_forward_intensity, batch_forward_id_input, initial_state_tuple)
-            backward_logit, _ = backward_deepnovo(batch_backward_intensity, batch_backward_id_input, initial_state_tuple)
+            backward_logit, _ = backward_deepnovo(batch_backward_intensity, batch_backward_id_input,
+                                                  initial_state_tuple)
             forward_loss, f_num = focal_loss(forward_logit, batch_forward_id_target, ignore_index=0, gamma=2.)
             backward_loss, b_num = focal_loss(backward_logit, batch_backward_id_target, ignore_index=0, gamma=2.)
             valid_loss += forward_loss * f_num + backward_loss * b_num
@@ -132,6 +139,16 @@ def adjust_learning_rate(optimizer, epoch):
         param_group['lr'] = lr
 
 
+def save_model(forward_deepnovo, backward_deepnovo, spectrum_cnn):
+    torch.save(forward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                           forward_model_save_name))
+    torch.save(backward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                            backward_model_save_name))
+    if deepnovo_config.use_lstm:
+        torch.save(spectrum_cnn.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                           spectrum_cnn_save_name))
+
+
 def train():
     train_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_train,
                                      deepnovo_config.input_spectrum_file_train)
@@ -139,10 +156,10 @@ def train():
     steps_per_epoch = int(num_train_features / deepnovo_config.batch_size)
     logger.info(f"{steps_per_epoch} steps per epoch")
     train_data_loader = torch.utils.data.DataLoader(dataset=train_set,
-                                                      batch_size=deepnovo_config.batch_size,
-                                                      shuffle=True,
-                                                      num_workers=deepnovo_config.num_workers,
-                                                      collate_fn=collate_func)
+                                                    batch_size=deepnovo_config.batch_size,
+                                                    shuffle=True,
+                                                    num_workers=deepnovo_config.num_workers,
+                                                    collate_fn=collate_func)
     valid_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_valid,
                                      deepnovo_config.input_spectrum_file_valid)
     valid_data_loader = torch.utils.data.DataLoader(dataset=valid_set,
@@ -151,9 +168,12 @@ def train():
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
     forward_deepnovo, backward_deepnovo, spectrum_cnn = build_model()
-    all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
-                 list(spectrum_cnn.parameters())
-    optimizer = optim.Adam(all_params, lr=deepnovo_config.init_lr)
+    if deepnovo_config.use_lstm:
+        all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
+                     list(spectrum_cnn.parameters())
+    else:
+        all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
+    optimizer = optim.Adam(all_params, lr=deepnovo_config.init_lr, weight_decay=deepnovo_config.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, verbose=True,
                                                            threshold=1e-4, cooldown=10, min_lr=1e-5)
 
@@ -185,10 +205,13 @@ def train():
             batch_backward_id_input = batch_backward_id_input.to(device)
             batch_backward_id_target = batch_backward_id_target.to(device)
 
-
-            initial_state_tuple = spectrum_cnn(spectrum_holder)
+            if deepnovo_config.use_lstm:
+                initial_state_tuple = spectrum_cnn(spectrum_holder)
+            else:
+                initial_state_tuple = None
             forward_logit, _ = forward_deepnovo(batch_forward_intensity, batch_forward_id_input, initial_state_tuple)
-            backward_logit, _ = backward_deepnovo(batch_backward_intensity, batch_backward_id_input, initial_state_tuple)
+            backward_logit, _ = backward_deepnovo(batch_backward_intensity, batch_backward_id_input,
+                                                  initial_state_tuple)
             forward_loss, _ = focal_loss(forward_logit, batch_forward_id_target, ignore_index=0, gamma=2.)
             backward_loss, _ = focal_loss(backward_logit, batch_backward_id_target, ignore_index=0, gamma=2.)
             total_loss = (forward_loss + backward_loss) / 2.
@@ -198,12 +221,13 @@ def train():
             torch.nn.utils.clip_grad_norm_(all_params, deepnovo_config.max_gradient_norm)
             optimizer.step()
 
-            if (i+1) % deepnovo_config.steps_per_validation == 0:
+            if (i + 1) % deepnovo_config.steps_per_validation == 0:
                 duration = time.time() - start_time
                 step_time = duration / deepnovo_config.steps_per_validation
                 loss_cpu = total_loss.item()
                 # evaluation mode
-                spectrum_cnn.eval()
+                if deepnovo_config.use_lstm:
+                    spectrum_cnn.eval()
                 forward_deepnovo.eval()
                 backward_deepnovo.eval()
                 validation_loss = validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_data_loader)
@@ -217,14 +241,11 @@ def train():
                     best_epoch = epoch
                     best_step = i
                     # save model if achieve a new best valid loss
-                    torch.save(forward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
-                                                                           forward_model_save_name))
-                    torch.save(backward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
-                                                                            backward_model_save_name))
-                    torch.save(spectrum_cnn.state_dict(), os.path.join(deepnovo_config.train_dir,
-                                                                       spectrum_cnn_save_name))
+                    save_model(forward_deepnovo, backward_deepnovo, spectrum_cnn)
+
                 # back to train model
-                spectrum_cnn.train()
+                if deepnovo_config.use_lstm:
+                    spectrum_cnn.train()
                 forward_deepnovo.train()
                 backward_deepnovo.train()
 

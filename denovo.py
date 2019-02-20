@@ -138,12 +138,16 @@ class IonCNNDenovo(object):
         for feature_index in range(num_features):
             # all feature in the same batch should be from same direction
             assert direction == start_point_batch[feature_index].direction
+            if deepnovo_config.use_lstm:
+                state = (lstm_state0_tuple[0][:, feature_index, :], lstm_state0_tuple[1][:, feature_index, :])
+            else:
+                state = None
             path = SearchPath(
                 aa_id_list=[first_label],
                 aa_seq_mass=get_start_mass(start_point_batch[feature_index]),
                 score_list=[0.0],
                 score_sum=0.0,
-                lstm_state=(lstm_state0_tuple[0][:, feature_index, :], lstm_state0_tuple[1][:, feature_index, :]),
+                lstm_state=state,
                 direction=direction,
             )
             search_entry = SearchEntry(
@@ -217,8 +221,9 @@ class IonCNNDenovo(object):
                     block_intensity_input.append(candidate_intensity)
                     block_aa_id_input.append(aa_id)
                     # get hidden state block
-                    block_lstm_h.append(lstm_state_tuple[0])
-                    block_lstm_c.append(lstm_state_tuple[1])
+                    if deepnovo_config.use_lstm:
+                        block_lstm_h.append(lstm_state_tuple[0])
+                        block_lstm_c.append(lstm_state_tuple[1])
 
                     block_aa_id_list.append(aa_id_list)
                     block_aa_seq_mass.append(aa_seq_mass)
@@ -237,10 +242,14 @@ class IonCNNDenovo(object):
 
             block_intensity_input = torch.from_numpy(np.array(block_intensity_input)).to(device)  # [batch, 26, 8, 10]
             block_intensity_input = torch.unsqueeze(block_intensity_input, dim=1)  # [batch, 1, 26, 8, 10]
-            block_state_tuple = (torch.stack(block_lstm_h, dim=1).contiguous(),
-                                 torch.stack(block_lstm_c, dim=1).contiguous())
-            block_aa_id_input = torch.from_numpy(np.array(block_aa_id_input, dtype=np.int64)).unsqueeze(1).to(
-                device)  # [batch, 1]
+            if deepnovo_config.use_lstm:
+                block_state_tuple = (torch.stack(block_lstm_h, dim=1).contiguous(),
+                                     torch.stack(block_lstm_c, dim=1).contiguous())
+                block_aa_id_input = torch.from_numpy(np.array(block_aa_id_input, dtype=np.int64)).unsqueeze(1).to(
+                    device)  # [batch, 1]
+            else:
+                block_state_tuple = None
+                block_aa_id_input = None
 
             current_log_prob, new_state_tuple = model_wrapper.step(block_intensity_input,
                                                                    block_aa_id_input,
@@ -264,7 +273,10 @@ class IonCNNDenovo(object):
                         else:
                             new_score_list = block_score_list[index] + [0.0]
                             new_score_sum = block_score_sum[index] + 0.0
-                        new_path_state_tuple = (new_state_tuple[0][:, index, :], new_state_tuple[1][:, index, :])
+                        if deepnovo_config.use_lstm:
+                            new_path_state_tuple = (new_state_tuple[0][:, index, :], new_state_tuple[1][:, index, :])
+                        else:
+                            new_path_state_tuple = None
                         new_path = SearchPath(
                             aa_id_list=block_aa_id_list[index] + [aa_id],
                             aa_seq_mass=block_aa_seq_mass[index] + deepnovo_config.mass_ID[aa_id],
