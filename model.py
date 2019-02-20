@@ -193,7 +193,8 @@ class InferenceModelWrapper(object):
             model = self.forward_model
         else:
             model = self.backward_model
-        assert candidate_intensity.size(1) == aa_input.size(1) == 1
+        if deepnovo_config.use_lstm:
+            assert candidate_intensity.size(1) == aa_input.size(1) == 1
         with torch.no_grad():
             logit, new_hidden_state = model(candidate_intensity, aa_input, prev_hidden_state_tuple)
             logit = torch.squeeze(logit, dim=1)

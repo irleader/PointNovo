@@ -82,7 +82,9 @@ def build_model(training=True):
                          f"{deepnovo_config.train_dir}"
         logger.info("initialize a set of new parameters")
 
-    backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
+    if deepnovo_config.use_lstm:
+        # share embedding matrix
+        backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
 
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)
