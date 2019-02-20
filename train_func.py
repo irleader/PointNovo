@@ -124,6 +124,14 @@ def perplexity(log_loss):
     return math.exp(log_loss) if log_loss < 300 else float('inf')
 
 
+def adjust_learning_rate(optimizer, epoch):
+    """Sets the learning rate to the initial LR decayed by 10 every 3 epochs"""
+    lr = deepnovo_config.init_lr * (0.1 ** ((epoch + 1) // 3))
+    logger.info(f"epoch: {epoch}\tlr: {lr}")
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
 def train():
     train_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_train,
                                      deepnovo_config.input_spectrum_file_train)
@@ -145,7 +153,9 @@ def train():
     forward_deepnovo, backward_deepnovo, spectrum_cnn = build_model()
     all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
                  list(spectrum_cnn.parameters())
-    optimizer = optim.Adam(all_params, lr=1e-3)
+    optimizer = optim.Adam(all_params, lr=deepnovo_config.init_lr)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, verbose=True,
+                                                           threshold=1e-4, cooldown=10, min_lr=1e-5)
 
     best_valid_loss = float("inf")
     # train loop
@@ -153,6 +163,8 @@ def train():
     best_step = None
     start_time = time.time()
     for epoch in range(deepnovo_config.num_epoch):
+        # learning rate schedule
+        # adjust_learning_rate(optimizer, epoch)
         for i, data in enumerate(train_data_loader):
             optimizer.zero_grad()
 
@@ -195,6 +207,7 @@ def train():
                 forward_deepnovo.eval()
                 backward_deepnovo.eval()
                 validation_loss = validation(spectrum_cnn, forward_deepnovo, backward_deepnovo, valid_data_loader)
+                scheduler.step(validation_loss)
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
                             f"train perplexity: {perplexity(loss_cpu)}\t"
                             f"validation perplexity: {perplexity(validation_loss)}\tstep time: {step_time}")

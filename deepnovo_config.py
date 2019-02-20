@@ -230,7 +230,7 @@ PRECURSOR_MASS_PRECISION_TOLERANCE = 0.01
 AA_MATCH_PRECISION = 0.1
 
 # skip (x > MZ_MAX,MAX_LEN)
-MAX_LEN = 50 if FLAGS.decode else 30
+MAX_LEN = 50 if FLAGS.search_denovo else 30
 print("MAX_LEN ", MAX_LEN)
 
 
@@ -264,7 +264,9 @@ batch_size = 32
 num_workers = 6
 print("batch_size ", batch_size)
 
-num_epoch = 50
+num_epoch = 10
+
+init_lr = 1e-3
 
 train_stack_size = 500 # 3000 # 5000
 valid_stack_size = 1500#1000 # 3000 # 5000
@@ -311,8 +313,8 @@ input_feature_file_valid = "ABRF_DDA/features.csv.identified.valid.nodup"
 input_spectrum_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.spectrum.mgf"
 input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.feature.csv"
 # denovo files
-denovo_input_spectrum_file = "data.training/dia.pecan.plasma.2018_03_29/1.mgf"
-denovo_input_feature_file = "data.training/dia.pecan.plasma.2018_03_29/1.csv"
+denovo_input_spectrum_file = "ABRF_DDA/spectrums.mgf"
+denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
 denovo_output_file = denovo_input_feature_file + ".deepnovo_denovo"
 # db files
 #~ db_fasta_file = "data/uniprot_sprot.human.db_decoy.fasta"
@@ -331,9 +333,9 @@ denovo_output_file = denovo_input_feature_file + ".deepnovo_denovo"
   #~ hybrid_output_file += ".decoy"
 # test accuracy
 predicted_format = "deepnovo"
-target_file = "data.training/dia.pecan.plasma.2018_03_29/testing_plasma.feature.csv"
-#~ predicted_file = denovo_output_file
-predicted_file = "data.training/dia.pecan.plasma.2018_03_29/testing_plasma.unlabeled.csv.deepnovo_denovo.top90"
+target_file = denovo_input_feature_file
+predicted_file = denovo_output_file
+# predicted_file = "data.training/dia.pecan.plasma.2018_03_29/testing_plasma.unlabeled.csv.deepnovo_denovo.top90"
 #~ predicted_format = "peaks"
 #~ target_file = "data.training/dia.urine.2018_04_23/testing_gs.feature.csv"
 #~ predicted_file = "data.training/dia.urine.2018_04_23/peaks.denovo.csv.uti"

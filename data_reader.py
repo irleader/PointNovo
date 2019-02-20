@@ -312,5 +312,36 @@ def collate_func(train_data_list):
             batch_backward_id_target)
 
 
+# helper functions
+def chunks(l, n: int):
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
 class DeepNovoDenovoDataset(DeepNovoTrainDataset):
-    pass
+    # override _get_feature method
+    def _get_feature(self, feature: DDAFeature) -> DenovoData:
+        spectrum_location = self.spectrum_location_dict[feature.scan]
+        self.input_spectrum_handle.seek(spectrum_location)
+        # parse header lines
+        line = self.input_spectrum_handle.readline()
+        assert "BEGIN IONS" in line, "Error: wrong input BEGIN IONS"
+        line = self.input_spectrum_handle.readline()
+        assert "TITLE=" in line, "Error: wrong input TITLE="
+        line = self.input_spectrum_handle.readline()
+        assert "PEPMASS=" in line, "Error: wrong input PEPMASS="
+        line = self.input_spectrum_handle.readline()
+        assert "CHARGE=" in line, "Error: wrong input CHARGE="
+        line = self.input_spectrum_handle.readline()
+        assert "SCANS=" in line, "Error: wrong input SCANS="
+        line = self.input_spectrum_handle.readline()
+        assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
+        mz_list, intensity_list = self._parse_spectrum_ion()
+        spectrum_holder, \
+        spectrum_original_forward, \
+        spectrum_original_backward = process_spectrum(mz_list, intensity_list, feature.mass)
+
+        return DenovoData(spectrum_holder=spectrum_holder,
+                          spectrum_original_forward=spectrum_original_forward,
+                          spectrum_original_backward=spectrum_original_backward,
+                          original_dda_feature=feature)

@@ -129,6 +129,10 @@ class InferenceModelWrapper(object):
         self.forward_model = forward_model
         self.backward_model = backward_model
         self.spectrum_cnn = spectrum_cnn
+        # make sure all models are in eval mode
+        self.forward_model.eval()
+        self.backward_model.eval()
+        self.spectrum_cnn.eval()
 
     def initial_hidden_state(self, spectrum_holder_list: list):
         """
