@@ -74,9 +74,12 @@ def build_model(training=True):
         logger.info("load pretrained model")
         if deepnovo_config.use_lstm:
             assert os.path.exists(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name))
-            spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name)))
-        forward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, forward_model_save_name)))
-        backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name)))
+            spectrum_cnn.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, spectrum_cnn_save_name),
+                                                    map_location=device))
+        forward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, forward_model_save_name),
+                                                    map_location=device))
+        backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name),
+                                                     map_location=device))
     else:
         assert training, f"building model for testing, but could not found weight under directory " \
                          f"{deepnovo_config.train_dir}"
