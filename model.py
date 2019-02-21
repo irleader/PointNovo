@@ -9,6 +9,7 @@ from enum import Enum
 activation_func = F.relu
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+
 class SpectrumCNN(nn.Module):
     def __init__(self, dropout_p=0.25):
         super(SpectrumCNN, self).__init__()

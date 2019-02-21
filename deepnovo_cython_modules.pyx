@@ -3,7 +3,6 @@
 # DeepNovo is publicly available for non-commercial uses.
 # ==============================================================================
 
-"""TODO(nh2tran): docstring."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -30,6 +29,63 @@ cdef int num_ion = deepnovo_config.num_ion
 cdef int MZ_SIZE = deepnovo_config.MZ_SIZE
 
 
+
+@cython.boundscheck(False) # turn off bounds-checking
+@cython.wraparound(False) # turn off negative index wrapping
+def get_ion_index(peptide_mass, prefix_mass, direction):
+  """
+
+  :param peptide_mass: neutral mass of a peptide
+  :param prefix_mass:
+  :param direction: 0 for forward, 1 for backward
+  :return: an int32 ndarray of shape [26, 8], each element represent a index of the spectrum embbeding matrix. for out
+  of bound position, the index is 0
+  """
+  if direction == 0:
+    candidate_b_mass = prefix_mass + mass_ID_np
+    candidate_y_mass = peptide_mass - candidate_b_mass
+  elif direction == 1:
+    candidate_y_mass = prefix_mass + mass_ID_np
+    candidate_b_mass = peptide_mass - candidate_y_mass
+
+  # b-ions
+  candidate_b_H2O = candidate_b_mass - mass_H2O
+  candidate_b_NH3 = candidate_b_mass - mass_NH3
+  candidate_b_plus2_charge1 = ((candidate_b_mass + 2 * mass_H) / 2
+                               - mass_H)
+
+  # y-ions
+  candidate_y_H2O = candidate_y_mass - mass_H2O
+  candidate_y_NH3 = candidate_y_mass - mass_NH3
+  candidate_y_plus2_charge1 = ((candidate_y_mass + 2 * mass_H) / 2
+                               - mass_H)
+
+  # ion_2
+  #~   b_ions = [candidate_b_mass]
+  #~   y_ions = [candidate_y_mass]
+  #~   ion_mass_list = b_ions + y_ions
+
+  # ion_8
+  b_ions = [candidate_b_mass,
+            candidate_b_H2O,
+            candidate_b_NH3,
+            candidate_b_plus2_charge1]
+  y_ions = [candidate_y_mass,
+            candidate_y_H2O,
+            candidate_y_NH3,
+            candidate_y_plus2_charge1]
+  ion_mass_list = b_ions + y_ions
+  ion_mass = np.array(ion_mass_list, dtype=np.float32)  # 8 by 26
+
+  # ion locations
+  ion_location = np.ceil(ion_mass * SPECTRUM_RESOLUTION).astype(np.int32) # 8 by 26
+
+  in_bound_mask = np.logical_and(
+      ion_location > 0,
+      ion_location <= MZ_SIZE).astype(np.int32)
+  ion_location = ion_location * in_bound_mask  # 8 by 26, out of bound index would have value 0
+  return ion_location.transpose()  # 26 by 8
+
 @cython.boundscheck(False) # turn off bounds-checking
 @cython.wraparound(False) # turn off negative index wrapping
 cdef void copy_values(float[:,:,:] candidate_intensity_view, float[:] spectrum_view, int[:,:] location_sub, int i1, int i2):
@@ -41,6 +97,13 @@ cdef void copy_values(float[:,:,:] candidate_intensity_view, float[:] spectrum_v
 @cython.boundscheck(False) # turn off bounds-checking
 @cython.wraparound(False) # turn off negative index wrapping
 def get_location(peptide_mass, prefix_mass, direction):
+  """
+
+  :param peptide_mass: neutral mass of a peptide
+  :param prefix_mass:
+  :param direction: 0 for forward, 1 for backward
+  :return:
+  """
   if direction == 0:
     candidate_b_mass = prefix_mass + mass_ID_np
     candidate_y_mass = peptide_mass - candidate_b_mass
@@ -75,7 +138,7 @@ def get_location(peptide_mass, prefix_mass, direction):
             candidate_y_NH3,
             candidate_y_plus2_charge1]
   ion_mass_list = b_ions + y_ions
-  ion_mass = np.array(ion_mass_list, dtype=np.float32)
+  ion_mass = np.array(ion_mass_list, dtype=np.float32)  # 8 by 26
 
   # ion locations
   location_sub50 = np.rint(ion_mass * SPECTRUM_RESOLUTION).astype(np.int32) # TODO(nh2tran): line-too-long

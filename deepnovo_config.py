@@ -92,7 +92,7 @@ tf.app.flags.DEFINE_integer("multiprocessor",
 
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
-use_lstm = True
+use_lstm = False
 
 # ==============================================================================
 # GLOBAL VARIABLES for VOCABULARY
