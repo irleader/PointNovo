@@ -204,7 +204,7 @@ def process_spectrum(spectrum_mz_list, spectrum_intensity_list, peptide_mass):
   charge = 1.0
   spectrum_mz = np.array(spectrum_mz_list, dtype=np.float32)
   neutral_mass = spectrum_mz - charge*deepnovo_config.mass_H
-  neutral_mass_location = np.rint(neutral_mass * deepnovo_config.SPECTRUM_RESOLUTION).astype(np.int32) # TODO(nh2tran): line-too-long
+  neutral_mass_location = np.rint(neutral_mass * deepnovo_config.SPECTRUM_RESOLUTION).astype(np.int32)
   cdef int [:] neutral_mass_location_view = neutral_mass_location
 
   # intensity
@@ -215,7 +215,7 @@ def process_spectrum(spectrum_mz_list, spectrum_intensity_list, peptide_mass):
   spectrum_intensity_max = np.max(spectrum_intensity)
   # no normalization for each individual spectrum, we'll do it for multi-spectra
 #~   norm_intensity = spectrum_intensity / spectrum_intensity_max
-  norm_intensity = spectrum_intensity
+  norm_intensity = spectrum_intensity / (spectrum_intensity_max + 1e-6)
   cdef float [:] norm_intensity_view = norm_intensity
 
   # fill spectrum holders
@@ -224,9 +224,9 @@ def process_spectrum(spectrum_mz_list, spectrum_intensity_list, peptide_mass):
   # note that different peaks may fall into the same location, hence loop +=
   cdef int index
   for index in range(neutral_mass_location.size):
-#~     spectrum_holder_view[neutral_mass_location_view[index]] += norm_intensity_view[index] # TODO(nh2tran): line-too-long
-    spectrum_holder_view[neutral_mass_location_view[index]] = max(spectrum_holder_view[neutral_mass_location_view[index]], # TODO(nh2tran): line-too-long
-                                                                     norm_intensity_view[index]) # TODO(nh2tran): line-too-long
+#~     spectrum_holder_view[neutral_mass_location_view[index]] += norm_intensity_view[index]
+    spectrum_holder_view[neutral_mass_location_view[index]] = max(spectrum_holder_view[neutral_mass_location_view[index]],
+                                                                     norm_intensity_view[index])
   spectrum_original_forward = np.copy(spectrum_holder)
   spectrum_original_backward = np.copy(spectrum_holder)
 
@@ -236,31 +236,31 @@ def process_spectrum(spectrum_mz_list, spectrum_intensity_list, peptide_mass):
   cdef int [:] complement_mass_location_view = complement_mass_location
 #~   cdef int index
   for index in np.nonzero(complement_mass_location > 0)[0]:
-    spectrum_holder_view[complement_mass_location_view[index]] += norm_intensity_view[index] # TODO(nh2tran): line-too-long
+    spectrum_holder_view[complement_mass_location_view[index]] += norm_intensity_view[index]
 
   # peptide_mass
-  spectrum_original_forward[int(round(peptide_mass * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0 # TODO(nh2tran): line-too-long
-  spectrum_original_backward[int(round(peptide_mass * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0 # TODO(nh2tran): line-too-long
+  spectrum_original_forward[int(round(peptide_mass * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
+  spectrum_original_backward[int(round(peptide_mass * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
 
   # N-terminal, b-ion, peptide_mass_C
   # append N-terminal
   mass_N = deepnovo_config.mass_N_terminus - deepnovo_config.mass_H
-  spectrum_holder[int(round(mass_N * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0
+  spectrum_holder[int(round(mass_N * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
   # append peptide_mass_C
   mass_C = deepnovo_config.mass_C_terminus + deepnovo_config.mass_H
   peptide_mass_C = peptide_mass - mass_C
-  spectrum_holder[int(round(peptide_mass_C * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0 # TODO(nh2tran): line-too-long
-  spectrum_original_forward[int(round(peptide_mass_C * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0 # TODO(nh2tran): line-too-long
+  spectrum_holder[int(round(peptide_mass_C * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
+  spectrum_original_forward[int(round(peptide_mass_C * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
 
   # C-terminal, y-ion, peptide_mass_N
   # append C-terminal
   mass_C = deepnovo_config.mass_C_terminus + deepnovo_config.mass_H
-  spectrum_holder[int(round(mass_C * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0
+  spectrum_holder[int(round(mass_C * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
   # append peptide_mass_N
   mass_N = deepnovo_config.mass_N_terminus - deepnovo_config.mass_H
   peptide_mass_N = peptide_mass - mass_N
-  spectrum_holder[int(round(peptide_mass_N * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max# 1.0 # TODO(nh2tran): line-too-long
-  spectrum_original_backward[int(round(peptide_mass_N * deepnovo_config.SPECTRUM_RESOLUTION))] = spectrum_intensity_max # 1.0 # TODO(nh2tran): line-too-long
+  spectrum_holder[int(round(peptide_mass_N * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
+  spectrum_original_backward[int(round(peptide_mass_N * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
 
   return spectrum_holder, spectrum_original_forward, spectrum_original_backward
 

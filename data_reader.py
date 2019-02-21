@@ -206,6 +206,8 @@ class DeepNovoTrainDataset(Dataset):
         spectrum_original_forward, \
         spectrum_original_backward = process_spectrum(mz_list, intensity_list, feature.mass)
 
+        assert np.max(spectrum_holder) < 1.0 + 1e-5
+
         peptide_id_list = [deepnovo_config.vocab[x] for x in feature.peptide]
         forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
         forward_id_target = peptide_id_list + [deepnovo_config.EOS_ID]
