@@ -76,13 +76,12 @@ class DenovoData:
 
 @dataclass
 class TrainData:
-    spectrum_holder: np.ndarray
-    forward_id_input: list
+    peak_location: np.ndarray
+    peak_intensity: np.ndarray
     forward_id_target: list
-    backward_id_input: list
     backward_id_target: list
-    forward_candidate_intensity: list
-    backward_candidate_intensity: list
+    forward_ion_location_index_list: list
+    backward_ion_location_index_list: list
 
 
 class DeepNovoTrainDataset(Dataset):

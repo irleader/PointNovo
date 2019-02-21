@@ -213,6 +213,8 @@ print("WINDOW_SIZE ", WINDOW_SIZE)
 MZ_MAX = 3000.0
 MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION) # 30k
 
+MAX_NUM_PEAK = 500
+
 KNAPSACK_AA_RESOLUTION = 10000 # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION)) # 57.02146
 KNAPSACK_MASS_PRECISION_TOLERANCE = 100 # 0.01 Da
@@ -246,11 +248,11 @@ print("weight_decay ", weight_decay)
 #~ print("encoding_cnn_size ", encoding_cnn_size)
 #~ print("encoding_cnn_filter ", encoding_cnn_filter)
 
-embedding_size = 512
+embedding_size = 128
 print("embedding_size ", embedding_size)
 
 num_lstm_layers = 1
-num_units = 512
+num_units = 128
 print("num_lstm_layers ", num_lstm_layers)
 print("num_units ", num_units)
 
