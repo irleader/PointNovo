@@ -158,7 +158,7 @@ def train():
 
     dense_optimizer = optim.Adam(dense_params, lr=deepnovo_config.init_lr, weight_decay=deepnovo_config.weight_decay)
     # sparse_optimizer = optim.SparseAdam(sparse_params, lr=deepnovo_config.init_lr)
-    dense_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(dense_optimizer, 'min', factor=0.25, verbose=True,
+    dense_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(dense_optimizer, 'min', factor=0.5, verbose=True,
                                                            threshold=1e-4, cooldown=10, min_lr=1e-5)
     # sparse_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(sparse_optimizer, 'min', factor=0.25, verbose=False,
     #                                                        threshold=1e-4, cooldown=10, min_lr=1e-5)

@@ -17,7 +17,7 @@ class TNet(nn.Module):
     """
     def __init__(self):
         super(TNet, self).__init__()
-        self.conv1 = nn.Conv1d(deepnovo_config.vocab_size * deepnovo_config.num_ion, num_units, 1)
+        self.conv1 = nn.Conv1d(deepnovo_config.vocab_size * deepnovo_config.num_ion + 1, num_units, 1)
         self.conv2 = nn.Conv1d(num_units, 2*num_units, 1)
         self.conv3 = nn.Conv1d(2*num_units, 4*num_units, 1)
         self.fc1 = nn.Linear(4*num_units, 2*num_units)
@@ -25,6 +25,7 @@ class TNet(nn.Module):
         self.fc3 = nn.Linear(num_units, deepnovo_config.vocab_size)
         self.relu = nn.ReLU()
 
+        self.input_batch_norm = nn.BatchNorm1d(26*8 + 1)
         self.bn1 = nn.BatchNorm1d(num_units)
         self.bn2 = nn.BatchNorm1d(2*num_units)
         self.bn3 = nn.BatchNorm1d(4*num_units)
@@ -34,10 +35,11 @@ class TNet(nn.Module):
     def forward(self, x):
         """
 
-        :param x: [batch * T, 26*8, N]
+        :param x: [batch * T, 26*8+1, N]
         :return:
             logit: [batch * T, 26]
         """
+        x = self.input_batch_norm(x)
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
@@ -53,12 +55,6 @@ class TNet(nn.Module):
 class DeepNovoPointNet(nn.Module):
     def __init__(self):
         super(DeepNovoPointNet, self).__init__()
-        # setting sparse = True will cause memory issue!!
-        self.spectrum_embedding_matrix = nn.Embedding(num_embeddings=deepnovo_config.MZ_SIZE+1,
-                                                      embedding_dim=deepnovo_config.embedding_size,
-                                                      padding_idx=0,
-                                                      sparse=False,
-                                                      max_norm=5)
         self.t_net = TNet()
 
     def forward(self, location_index, peaks_location, peaks_intensity):
@@ -70,19 +66,29 @@ class DeepNovoPointNet(nn.Module):
         :return:
             logits: [batch, T, 26]
         """
+
         N = peaks_location.size(1)
         assert N == peaks_intensity.size(1)
         batch_size, T, vocab_size, num_ion = location_index.size()
-        peaks_location = torch.unsqueeze(peaks_location, dim=1)
-        peaks_embedded = self.spectrum_embedding_matrix(peaks_location)  # [batch, 1, N, embed_size]
-        peaks_embedded = peaks_embedded * peaks_intensity.view(batch_size, 1, N, 1)  # multiply embedding by intensity
-        ion_embedded = self.spectrum_embedding_matrix(location_index)
-        peaks_embedded = peaks_embedded.repeat(1, T, 1, 1).view(batch_size*T, N, deepnovo_config.embedding_size)
-            # [batch * T, N, embed_size]
-        ion_embedded = ion_embedded.view(batch_size * T, vocab_size*num_ion, deepnovo_config.embedding_size)
-            # [batch * T, 26*8, embed_size]
-        score_matrix = torch.bmm(ion_embedded, peaks_embedded.transpose(1, 2))  # [batch * T, 26 * 8， N]
-        result = self.t_net(score_matrix).view(batch_size, T, vocab_size)
+
+        peaks_location = peaks_location.view(batch_size, 1, N, 1)
+        peaks_intensity = peaks_intensity.view(batch_size, 1, N, 1)
+        peaks_location = peaks_location.repeat(1, T, 1, 1)  # [batch, T, N, 1]
+        peaks_location_mask = (peaks_location > 1e-5).float()
+        peaks_intensity = peaks_intensity.repeat(1, T, 1, 1)  # [batch, T, N, 1]
+
+        location_index = location_index.view(batch_size, T, 1, vocab_size*num_ion)
+        location_index_mask = (location_index > 1e-5).float()
+
+        location_exp_minus_abs_diff = torch.exp(-torch.abs(peaks_location - location_index))  # [batch, T, N, 26*8]
+
+        location_exp_minus_abs_diff = location_exp_minus_abs_diff * peaks_location_mask * location_index_mask
+
+        input_feature = torch.cat((location_exp_minus_abs_diff, peaks_intensity), dim=3)
+        input_feature = input_feature.view(batch_size*T, N, vocab_size *num_ion + 1)
+        input_feature = input_feature.transpose(1, 2)
+
+        result = self.t_net(input_feature).view(batch_size, T, vocab_size)
         return result
 
 
@@ -127,26 +133,24 @@ class InferenceModelWrapper(object):
                 spectrum_holder = torch.from_numpy(temp).to(device)
                 return self.spectrum_cnn(spectrum_holder)
 
-    def step(self, candidate_intensity, aa_input, prev_hidden_state_tuple, direction):
+    def step(self, candidate_location, peaks_location, peaks_intensity, direction):
         """
-        :param candidate_intensity: [batch, 1, 26, 8, 10]
-        :param aa_input: [batch, 1]
-        :param prev_hidden_state_tuple: (h, c), each is [batch, 1, num_units]
+        :param candidate_location: [batch, 1, 26, 8]
+        :param peaks_location: [batch, N]
+        :param peaks_intensity: [batch, N]
         :param direction: enum class, whether forward or backward
         :return: (log_prob, new_hidden_state)
         log_prob: the pred log prob of shape [batch, 26]
-        new_hidden_state: new hidden state for next step
         """
         if direction == Direction.forward:
             model = self.forward_model
         else:
             model = self.backward_model
-        if deepnovo_config.use_lstm:
-            assert candidate_intensity.size(1) == aa_input.size(1) == 1
+
         with torch.no_grad():
-            logit, new_hidden_state = model(candidate_intensity, aa_input, prev_hidden_state_tuple)
+            logit = model(candidate_location, peaks_location, peaks_intensity)
             logit = torch.squeeze(logit, dim=1)
             log_prob = F.log_softmax(logit)
-        return log_prob, new_hidden_state
+        return log_prob
 
 

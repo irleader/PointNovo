@@ -68,9 +68,8 @@ class DDAFeature:
 
 @dataclass
 class DenovoData:
-    spectrum_holder: np.ndarray
-    spectrum_original_forward: np.ndarray
-    spectrum_original_backward: np.ndarray
+    peak_location: np.ndarray
+    peak_intensity: np.ndarray
     original_dda_feature: DDAFeature
 
 
@@ -269,7 +268,7 @@ def collate_func(train_data_list):
     batch_forward_id_target = []
     for data in train_data_list:
         ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
-                               np.int64)
+                               np.float32)
         forward_ion_index = np.stack(data.forward_ion_location_index_list)
         ion_index[:forward_ion_index.shape[0], :, :] = forward_ion_index
         batch_forward_ion_index.append(ion_index)
@@ -286,7 +285,7 @@ def collate_func(train_data_list):
     batch_backward_id_target = []
     for data in train_data_list:
         ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
-                             np.int64)
+                             np.float32)
         backward_ion_index = np.stack(data.backward_ion_location_index_list)
         ion_index[:backward_ion_index.shape[0], :, :] = backward_ion_index
         batch_backward_ion_index.append(ion_index)
@@ -333,11 +332,8 @@ class DeepNovoDenovoDataset(DeepNovoTrainDataset):
         line = self.input_spectrum_handle.readline()
         assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
         mz_list, intensity_list = self._parse_spectrum_ion()
-        spectrum_holder, \
-        spectrum_original_forward, \
-        spectrum_original_backward = process_spectrum(mz_list, intensity_list, feature.mass)
+        peak_location, peak_intensity = process_peaks(mz_list, intensity_list, feature.mass)
 
-        return DenovoData(spectrum_holder=spectrum_holder,
-                          spectrum_original_forward=spectrum_original_forward,
-                          spectrum_original_backward=spectrum_original_backward,
+        return DenovoData(peak_location=peak_location,
+                          peak_intensity=peak_intensity,
                           original_dda_feature=feature)

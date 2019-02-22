@@ -202,16 +202,13 @@ mass_AA_min = mass_AA["G"] # 57.02146
 #~ SPECTRUM_RESOLUTION = 10 # bins for 1.0 Da = precision 0.1 Da
 #~ SPECTRUM_RESOLUTION = 20 # bins for 1.0 Da = precision 0.05 Da
 #~ SPECTRUM_RESOLUTION = 40 # bins for 1.0 Da = precision 0.025 Da
-SPECTRUM_RESOLUTION = 50 # bins for 1.0 Da = precision 0.02 Da
-#~ SPECTRUM_RESOLUTION = 100 # bins for 1.0 Da = precision 0.01 Da
-print("SPECTRUM_RESOLUTION ", SPECTRUM_RESOLUTION)
+
 
 # if change, need to re-compile cython_speedup << NO NEED
 WINDOW_SIZE = 10 # 10 bins
 print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
-MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION) # 30k
 
 MAX_NUM_PEAK = 300
 
@@ -228,7 +225,7 @@ PRECURSOR_MASS_PRECISION_TOLERANCE = 0.01
 AA_MATCH_PRECISION = 0.1
 
 # skip (x > MZ_MAX,MAX_LEN)
-MAX_LEN = 50 if FLAGS.search_denovo else 20
+MAX_LEN = 50 if FLAGS.search_denovo else 30
 print("MAX_LEN ", MAX_LEN)
 
 

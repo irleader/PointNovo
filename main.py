@@ -35,8 +35,8 @@ def main():
         denovo_worker = IonCNNDenovo(deepnovo_config.MZ_MAX,
                                      deepnovo_config.knapsack_file,
                                      beam_size=deepnovo_config.FLAGS.beam_size)
-        forward_deepnovo, backward_deepnovo, spectrum_cnn = build_model(training=False)
-        model_wrapper = InferenceModelWrapper(forward_deepnovo, backward_deepnovo, spectrum_cnn)
+        forward_deepnovo, backward_deepnovo = build_model(training=False)
+        model_wrapper = InferenceModelWrapper(forward_deepnovo, backward_deepnovo)
         writer = DenovoWriter(deepnovo_config.denovo_output_file)
         denovo_worker.search_denovo(model_wrapper, data_reader, writer)
     elif deepnovo_config.FLAGS.test:
