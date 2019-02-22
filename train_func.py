@@ -152,16 +152,16 @@ def train():
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
     forward_deepnovo, backward_deepnovo = build_model()
-    sparse_params = forward_deepnovo.spectrum_embedding_matrix.parameters()
-    dense_params = list(forward_deepnovo.t_net.parameters()) + list(backward_deepnovo.t_net.parameters())
+    # sparse_params = forward_deepnovo.spectrum_embedding_matrix.parameters()
+    dense_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
 
 
     dense_optimizer = optim.Adam(dense_params, lr=deepnovo_config.init_lr, weight_decay=deepnovo_config.weight_decay)
-    sparse_optimizer = optim.SparseAdam(sparse_params, lr=deepnovo_config.init_lr)
+    # sparse_optimizer = optim.SparseAdam(sparse_params, lr=deepnovo_config.init_lr)
     dense_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(dense_optimizer, 'min', factor=0.25, verbose=True,
                                                            threshold=1e-4, cooldown=10, min_lr=1e-5)
-    sparse_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(sparse_optimizer, 'min', factor=0.25, verbose=False,
-                                                           threshold=1e-4, cooldown=10, min_lr=1e-5)
+    # sparse_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(sparse_optimizer, 'min', factor=0.25, verbose=False,
+    #                                                        threshold=1e-4, cooldown=10, min_lr=1e-5)
 
     best_valid_loss = float("inf")
     # train loop
@@ -173,7 +173,7 @@ def train():
         # adjust_learning_rate(optimizer, epoch)
         for i, data in enumerate(train_data_loader):
             dense_optimizer.zero_grad()
-            sparse_optimizer.zero_grad()
+            # sparse_optimizer.zero_grad()
 
             peak_location, \
             peak_intensity, \
@@ -202,7 +202,7 @@ def train():
             # torch.nn.utils.clip_grad_norm_(dense_params, deepnovo_config.max_gradient_norm)
 
             dense_optimizer.step()
-            sparse_optimizer.step()
+            # sparse_optimizer.step()
 
 
             if (i + 1) % deepnovo_config.steps_per_validation == 0:
@@ -214,7 +214,7 @@ def train():
                 backward_deepnovo.eval()
                 validation_loss = validation(forward_deepnovo, backward_deepnovo, valid_data_loader)
                 dense_scheduler.step(validation_loss)
-                sparse_scheduler.step(validation_loss)
+                # sparse_scheduler.step(validation_loss)
 
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
                             f"train perplexity: {perplexity(loss_cpu)}\t"

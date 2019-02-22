@@ -53,11 +53,12 @@ class TNet(nn.Module):
 class DeepNovoPointNet(nn.Module):
     def __init__(self):
         super(DeepNovoPointNet, self).__init__()
+        # setting sparse = True will cause memory issue!!
         self.spectrum_embedding_matrix = nn.Embedding(num_embeddings=deepnovo_config.MZ_SIZE+1,
                                                       embedding_dim=deepnovo_config.embedding_size,
                                                       padding_idx=0,
-                                                      sparse=True,  # TODO(Rui) try sparse with false
-                                                      )
+                                                      sparse=False,
+                                                      max_norm=5)
         self.t_net = TNet()
 
     def forward(self, location_index, peaks_location, peaks_intensity):
