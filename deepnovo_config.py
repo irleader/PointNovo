@@ -202,7 +202,7 @@ mass_AA_min = mass_AA["G"] # 57.02146
 #~ SPECTRUM_RESOLUTION = 10 # bins for 1.0 Da = precision 0.1 Da
 #~ SPECTRUM_RESOLUTION = 20 # bins for 1.0 Da = precision 0.05 Da
 #~ SPECTRUM_RESOLUTION = 40 # bins for 1.0 Da = precision 0.025 Da
-SPECTRUM_RESOLUTION = 50 # bins for 1.0 Da = precision 0.02 Da
+SPECTRUM_RESOLUTION = 10 # bins for 1.0 Da = precision 0.02 Da
 #~ SPECTRUM_RESOLUTION = 100 # bins for 1.0 Da = precision 0.01 Da
 print("SPECTRUM_RESOLUTION ", SPECTRUM_RESOLUTION)
 
@@ -213,7 +213,7 @@ print("WINDOW_SIZE ", WINDOW_SIZE)
 MZ_MAX = 3000.0
 MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION) # 30k
 
-MAX_NUM_PEAK = 500
+MAX_NUM_PEAK = 300
 
 KNAPSACK_AA_RESOLUTION = 10000 # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION)) # 57.02146
@@ -248,17 +248,17 @@ print("weight_decay ", weight_decay)
 #~ print("encoding_cnn_size ", encoding_cnn_size)
 #~ print("encoding_cnn_filter ", encoding_cnn_filter)
 
-embedding_size = 128
+embedding_size = 64
 print("embedding_size ", embedding_size)
 
 num_lstm_layers = 1
-num_units = 128
+num_units = 16
 print("num_lstm_layers ", num_lstm_layers)
 print("num_units ", num_units)
 
 dropout_rate = 0.25
 
-batch_size = 32
+batch_size = 8
 num_workers = 6
 print("batch_size ", batch_size)
 
@@ -275,7 +275,7 @@ print("valid_stack_size ", valid_stack_size)
 print("test_stack_size ", test_stack_size)
 print("decode_stack_size ", decode_stack_size)
 
-steps_per_validation = 100 # 100 # 2 # 4 # 200
+steps_per_validation = 500 # 100 # 2 # 4 # 200
 print("steps_per_validation ", steps_per_validation)
 
 max_gradient_norm = 5.0

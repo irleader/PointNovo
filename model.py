@@ -10,7 +10,11 @@ activation_func = F.relu
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 num_units = deepnovo_config.num_units
 
+
 class TNet(nn.Module):
+    """
+    the T-net structure in the Point Net paper
+    """
     def __init__(self):
         super(TNet, self).__init__()
         self.conv1 = nn.Conv1d(deepnovo_config.vocab_size * deepnovo_config.num_ion, num_units, 1)
@@ -31,14 +35,14 @@ class TNet(nn.Module):
         """
 
         :param x: [batch * T, 26*8, N]
-        :return: logit, [batch * T, 26]
+        :return:
+            logit: [batch * T, 26]
         """
-        batchsize = x.size()[0]
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        x = torch.max(x, 2)  # global max pooling
-        assert x.size()[1] == 4*num_units
+        x, _ = torch.max(x, dim=2)  # global max pooling
+        assert x.size(1) == 4*num_units
 
         x = F.relu(self.bn4(self.fc1(x)))
         x = F.relu(self.bn5(self.fc2(x)))
@@ -53,7 +57,7 @@ class DeepNovoPointNet(nn.Module):
                                                       embedding_dim=deepnovo_config.embedding_size,
                                                       padding_idx=0,
                                                       sparse=True,  # TODO(Rui) try sparse with false
-                                                      max_norm=5)
+                                                      )
         self.t_net = TNet()
 
     def forward(self, location_index, peaks_location, peaks_intensity):
@@ -72,12 +76,13 @@ class DeepNovoPointNet(nn.Module):
         peaks_embedded = self.spectrum_embedding_matrix(peaks_location)  # [batch, 1, N, embed_size]
         peaks_embedded = peaks_embedded * peaks_intensity.view(batch_size, 1, N, 1)  # multiply embedding by intensity
         ion_embedded = self.spectrum_embedding_matrix(location_index)
-        peaks_embedded = peaks_embedded.expand(-1, T, -1, -1).view(batch_size*T, N, deepnovo_config.embedding_size)
+        peaks_embedded = peaks_embedded.repeat(1, T, 1, 1).view(batch_size*T, N, deepnovo_config.embedding_size)
             # [batch * T, N, embed_size]
         ion_embedded = ion_embedded.view(batch_size * T, vocab_size*num_ion, deepnovo_config.embedding_size)
             # [batch * T, 26*8, embed_size]
         score_matrix = torch.bmm(ion_embedded, peaks_embedded.transpose(1, 2))  # [batch * T, 26 * 8， N]
-        return self.t_net(score_matrix)
+        result = self.t_net(score_matrix).view(batch_size, T, vocab_size)
+        return result
 
 
 DeepNovoModel = DeepNovoPointNet
