@@ -26,6 +26,7 @@ class TNet(nn.Module):
         self.relu = nn.ReLU()
 
         self.input_batch_norm = nn.BatchNorm1d(26*8 + 1)
+        self.dropout = nn.Dropout(p=deepnovo_config.dropout_rate)
         self.bn1 = nn.BatchNorm1d(num_units)
         self.bn2 = nn.BatchNorm1d(2*num_units)
         self.bn3 = nn.BatchNorm1d(4*num_units)
@@ -40,14 +41,16 @@ class TNet(nn.Module):
             logit: [batch * T, 26]
         """
         x = self.input_batch_norm(x)
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
+        x = activation_func(self.bn1(self.conv1(x)))
+        x = activation_func(self.bn2(self.conv2(x)))
+        x = activation_func(self.bn3(self.conv3(x)))
         x, _ = torch.max(x, dim=2)  # global max pooling
         assert x.size(1) == 4*num_units
 
-        x = F.relu(self.bn4(self.fc1(x)))
-        x = F.relu(self.bn5(self.fc2(x)))
+        x = activation_func(self.bn4(self.fc1(x)))
+        x = self.dropout(x)
+        x = activation_func(self.bn5(self.fc2(x)))
+        x = self.dropout(x)
         x = self.fc3(x)  # [batch * T, 26]
         return x
 
@@ -57,7 +60,7 @@ class DeepNovoPointNet(nn.Module):
         super(DeepNovoPointNet, self).__init__()
         self.t_net = TNet()
         self.v = nn.Parameter(torch.FloatTensor(1))
-        self.tranform_v = lambda x: 100 * torch.tanh(x)
+        self.tranform_v = lambda x: 500 * torch.tanh(x)
 
     def forward(self, location_index, peaks_location, peaks_intensity):
         """
