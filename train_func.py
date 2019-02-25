@@ -78,6 +78,7 @@ def build_model(training=True):
     if deepnovo_config.use_lstm:
         # share embedding matrix
         backward_deepnovo.spectrum_embedding_matrix.weight = forward_deepnovo.spectrum_embedding_matrix.weight
+    backward_deepnovo.v.data = forward_deepnovo.v.data
 
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)
@@ -220,8 +221,8 @@ def train():
                             f"train perplexity: {perplexity(loss_cpu)}\t"
                             f"validation perplexity: {perplexity(validation_loss)}\tstep time: {step_time}")
                 ## check v value
-                v_f = forward_deepnovo.v.data.cpu().numpy()
-                v_b = backward_deepnovo.v.data.cpu().numpy()
+                v_f = forward_deepnovo.tranform_v(forward_deepnovo.v).data.cpu().numpy()
+                v_b = backward_deepnovo.tranform_v(backward_deepnovo.v).data.cpu().numpy()
                 logger.info(f"forward model v: {v_f}, backward model v: {v_b}")
 
                 if validation_loss < best_valid_loss:
