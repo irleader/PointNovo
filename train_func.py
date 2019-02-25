@@ -219,6 +219,11 @@ def train():
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
                             f"train perplexity: {perplexity(loss_cpu)}\t"
                             f"validation perplexity: {perplexity(validation_loss)}\tstep time: {step_time}")
+                ## check v value
+                v_f = forward_deepnovo.v.data.cpu().numpy()
+                v_b = backward_deepnovo.v.data.cpu().numpy()
+                logger.info(f"forward model v: {v_f}, backward model v: {v_b}")
+
                 if validation_loss < best_valid_loss:
                     best_valid_loss = validation_loss
                     logger.info(f"best valid loss achieved at epoch {epoch} step {i}")

@@ -56,6 +56,7 @@ class DeepNovoPointNet(nn.Module):
     def __init__(self):
         super(DeepNovoPointNet, self).__init__()
         self.t_net = TNet()
+        self.v = torch.nn.Parameter(torch.FloatTensor(1))
 
     def forward(self, location_index, peaks_location, peaks_intensity):
         """
@@ -80,7 +81,12 @@ class DeepNovoPointNet(nn.Module):
         location_index = location_index.view(batch_size, T, 1, vocab_size*num_ion)
         location_index_mask = (location_index > 1e-5).float()
 
-        location_exp_minus_abs_diff = torch.exp(-torch.abs(peaks_location - location_index))  # [batch, T, N, 26*8]
+        location_exp_minus_abs_diff = torch.exp(
+            -torch.abs(
+                (peaks_location - location_index) * self.v
+            )
+        )
+        # [batch, T, N, 26*8]
 
         location_exp_minus_abs_diff = location_exp_minus_abs_diff * peaks_location_mask * location_index_mask
 
