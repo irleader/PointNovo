@@ -260,7 +260,7 @@ batch_size = 32
 num_workers = 6
 print("batch_size ", batch_size)
 
-num_epoch = 10
+num_epoch = 20
 
 init_lr = 1e-3
 
