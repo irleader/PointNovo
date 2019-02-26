@@ -179,7 +179,7 @@ def train():
     else:
         all_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
     optimizer = optim.Adam(all_params, lr=deepnovo_config.init_lr, weight_decay=deepnovo_config.weight_decay)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, verbose=True,
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.25, verbose=True,
                                                            threshold=1e-4, cooldown=10, min_lr=1e-5)
 
     best_valid_loss = float("inf")

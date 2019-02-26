@@ -173,8 +173,7 @@ def process_spectrum(spectrum_mz_list, spectrum_intensity_list, peptide_mass):
   cdef int [:] complement_mass_location_view = complement_mass_location
 #~   cdef int index
   for index in np.nonzero(complement_mass_location > 0)[0]:
-    spectrum_holder_view[complement_mass_location_view[index]] = max(norm_intensity_view[index],
-                                                                     spectrum_holder_view[complement_mass_location_view[index]])
+    spectrum_holder_view[complement_mass_location_view[index]] += norm_intensity_view[index]
 
   # peptide_mass
   spectrum_original_forward[int(round(peptide_mass * deepnovo_config.SPECTRUM_RESOLUTION))] = 1.0
