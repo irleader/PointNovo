@@ -96,7 +96,7 @@ tf.app.flags.DEFINE_integer("multiprocessor",
 
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
-use_lstm = False
+use_lstm = True
 
 # ==============================================================================
 # GLOBAL VARIABLES for VOCABULARY
@@ -368,3 +368,4 @@ pcol_scan_list_middle = 8
 pcol_scan_list_original = 9
 pcol_score_max = 10
 
+distance_scaling_factor = 100.

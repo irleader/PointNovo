@@ -11,20 +11,8 @@ import deepnovo_worker_test
 from deepnovo_dia_script_select import find_score_cutoff
 logger = logging.getLogger(__name__)
 
+
 def main():
-    # train_set = DeepNovoTrainDataset(deepnovo_config.input_feature_file_train, deepnovo_config.input_spectrum_file_train)
-    # data_loader = torch.utils.data.DataLoader(dataset=train_set,
-    #                                           batch_size=deepnovo_config.batch_size,
-    #                                           shuffle=True,
-    #                                           num_workers=6,
-    #                                           collate_fn=collate_func)
-    # for i, temp in enumerate(data_loader):
-    #     for a in temp:
-    #         print(a.shape)
-    #         if len(a.shape) <= 2:
-    #             print(a)
-    #     break
-    # logger.info("successfully create data loader")
     if deepnovo_config.FLAGS.train:
         logger.info("training mode")
         train()

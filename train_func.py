@@ -77,13 +77,46 @@ def build_model(training=True):
 
     if deepnovo_config.use_lstm:
         # share embedding matrix
-        backward_deepnovo.spectrum_embedding_matrix.weight = forward_deepnovo.spectrum_embedding_matrix.weight
-    backward_deepnovo.v.data = forward_deepnovo.v.data
-    logger.info(f"v: {backward_deepnovo.v.data.cpu().numpy()}")
+        backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
 
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)
     return forward_deepnovo, backward_deepnovo
+
+
+def extract_and_move_data(data):
+    """
+
+    :param data: result from dataloader
+    :return:
+    """
+    peak_location, \
+    peak_intensity, \
+    batch_forward_id_target, \
+    batch_backward_id_target, \
+    batch_forward_ion_index, \
+    batch_backward_ion_index, \
+    batch_forward_id_input, \
+    batch_backward_id_input = data
+
+    # move to device
+    peak_location = peak_location.to(device)
+    peak_intensity = peak_intensity.to(device)
+    batch_forward_id_target = batch_forward_id_target.to(device)
+    batch_backward_id_target = batch_backward_id_target.to(device)
+    batch_forward_ion_index = batch_forward_ion_index.to(device)
+    batch_backward_ion_index = batch_backward_ion_index.to(device)
+    batch_forward_id_input = batch_forward_id_input.to(device)
+    batch_backward_id_input = batch_backward_id_input.to(device)
+    return (peak_location,
+            peak_intensity,
+            batch_forward_id_target,
+            batch_backward_id_target,
+            batch_forward_ion_index,
+            batch_backward_ion_index,
+            batch_forward_id_input,
+            batch_backward_id_input
+            )
 
 
 def validation(forward_deepnovo, backward_deepnovo, valid_loader) -> float:
@@ -91,23 +124,24 @@ def validation(forward_deepnovo, backward_deepnovo, valid_loader) -> float:
         valid_loss = 0
         num_valid_samples = 0
         for data in valid_loader:
-            peak_location,\
-            peak_intensity,\
-            batch_forward_id_target,\
-            batch_backward_id_target,\
-            batch_forward_ion_index,\
-            batch_backward_ion_index = data
-
-            # move to device
-            peak_location = peak_location.to(device)
-            peak_intensity = peak_intensity.to(device)
-            batch_forward_id_target = batch_forward_id_target.to(device)
-            batch_backward_id_target = batch_backward_id_target.to(device)
-            batch_forward_ion_index = batch_forward_ion_index.to(device)
-            batch_backward_ion_index = batch_backward_ion_index.to(device)
-
-            forward_logit = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity)
-            backward_logit = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity)
+            peak_location, \
+            peak_intensity, \
+            batch_forward_id_target, \
+            batch_backward_id_target, \
+            batch_forward_ion_index, \
+            batch_backward_ion_index, \
+            batch_forward_id_input, \
+            batch_backward_id_input = extract_and_move_data(data)
+            batch_size = batch_backward_id_target.size(0)
+            if deepnovo_config.use_lstm:
+                zero_initial_state_tuple = forward_deepnovo.initial_hidden_state(batch_size=batch_size)
+                forward_logit, _ = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity,
+                                                    batch_forward_id_input, zero_initial_state_tuple)
+                backward_logit, _ = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity,
+                                                      batch_backward_id_input, zero_initial_state_tuple)
+            else:
+                forward_logit = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity)
+                backward_logit = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity)
             forward_loss, f_num = focal_loss(forward_logit, batch_forward_id_target, ignore_index=0, gamma=2.)
             backward_loss, b_num = focal_loss(backward_logit, batch_backward_id_target, ignore_index=0, gamma=2.)
             valid_loss += forward_loss.item() * f_num.item() + backward_loss.item() * b_num.item()
@@ -157,11 +191,12 @@ def train():
     # sparse_params = forward_deepnovo.spectrum_embedding_matrix.parameters()
     dense_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
 
-
-    dense_optimizer = optim.Adam(dense_params, lr=deepnovo_config.init_lr, weight_decay=deepnovo_config.weight_decay)
+    dense_optimizer = optim.Adam(dense_params,
+                                 lr=deepnovo_config.init_lr,
+                                 weight_decay=deepnovo_config.weight_decay)
     # sparse_optimizer = optim.SparseAdam(sparse_params, lr=deepnovo_config.init_lr)
     dense_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(dense_optimizer, 'min', factor=0.5, verbose=True,
-                                                           threshold=1e-4, cooldown=10, min_lr=1e-5)
+                                                                 threshold=1e-4, cooldown=10, min_lr=1e-5)
     # sparse_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(sparse_optimizer, 'min', factor=0.25, verbose=False,
     #                                                        threshold=1e-4, cooldown=10, min_lr=1e-5)
 
@@ -182,18 +217,20 @@ def train():
             batch_forward_id_target, \
             batch_backward_id_target, \
             batch_forward_ion_index, \
-            batch_backward_ion_index = data
+            batch_backward_ion_index, \
+            batch_forward_id_input, \
+            batch_backward_id_input = extract_and_move_data(data)
+            batch_size = batch_backward_id_target.size(0)
 
-            # move to device
-            peak_location = peak_location.to(device)
-            peak_intensity = peak_intensity.to(device)
-            batch_forward_id_target = batch_forward_id_target.to(device)
-            batch_backward_id_target = batch_backward_id_target.to(device)
-            batch_forward_ion_index = batch_forward_ion_index.to(device)
-            batch_backward_ion_index = batch_backward_ion_index.to(device)
-
-            forward_logit = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity)
-            backward_logit = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity)
+            if deepnovo_config.use_lstm:
+                zero_initial_state_tuple = forward_deepnovo.initial_hidden_state(batch_size=batch_size)
+                forward_logit, _ = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity,
+                                                    batch_forward_id_input, zero_initial_state_tuple)
+                backward_logit, _ = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity,
+                                                      batch_backward_id_input, zero_initial_state_tuple)
+            else:
+                forward_logit = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity)
+                backward_logit = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity)
 
             forward_loss, _ = focal_loss(forward_logit, batch_forward_id_target, ignore_index=0, gamma=2.)
             backward_loss, _ = focal_loss(backward_logit, batch_backward_id_target, ignore_index=0, gamma=2.)
@@ -205,7 +242,6 @@ def train():
 
             dense_optimizer.step()
             # sparse_optimizer.step()
-
 
             if (i + 1) % deepnovo_config.steps_per_validation == 0:
                 duration = time.time() - start_time
@@ -221,10 +257,6 @@ def train():
                 logger.info(f"epoch {epoch} step {i}/{steps_per_epoch}, "
                             f"train perplexity: {perplexity(loss_cpu)}\t"
                             f"validation perplexity: {perplexity(validation_loss)}\tstep time: {step_time}")
-                ## check v value
-                v_f = forward_deepnovo.tranform_v(forward_deepnovo.v).data.cpu().numpy()
-                v_b = backward_deepnovo.tranform_v(backward_deepnovo.v).data.cpu().numpy()
-                logger.info(f"forward model v: {v_f}, backward model v: {v_b}")
 
                 if validation_loss < best_valid_loss:
                     best_valid_loss = validation_loss
@@ -242,6 +274,5 @@ def train():
             # observed that most of gpu memory is unoccupied cache, so clear cache after each batch
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-
 
     logger.info(f"best model at epoch {best_epoch} step {best_step}")

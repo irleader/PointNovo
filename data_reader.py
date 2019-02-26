@@ -81,6 +81,8 @@ class TrainData:
     backward_id_target: list
     forward_ion_location_index_list: list
     backward_ion_location_index_list: list
+    forward_id_input: list
+    backward_id_input: list
 
 
 class DeepNovoTrainDataset(Dataset):
@@ -229,7 +231,9 @@ class DeepNovoTrainDataset(Dataset):
                          forward_id_target=forward_id_target,
                          backward_id_target=backward_id_target,
                          forward_ion_location_index_list=forward_ion_location_index_list,
-                         backward_ion_location_index_list=backward_ion_location_index_list)
+                         backward_ion_location_index_list=backward_ion_location_index_list,
+                         forward_id_input=forward_id_input,
+                         backward_id_input=backward_id_input)
 
     def __getitem__(self, idx):
         if self.input_spectrum_handle is None:
@@ -266,6 +270,7 @@ def collate_func(train_data_list):
 
     batch_forward_ion_index = []
     batch_forward_id_target = []
+    batch_forward_id_input = []
     for data in train_data_list:
         ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
                                np.float32)
@@ -278,11 +283,20 @@ def collate_func(train_data_list):
         f_target[:forward_target.shape[0]] = forward_target
         batch_forward_id_target.append(f_target)
 
+        f_input = np.zeros((batch_max_seq_len,), np.int64)
+        forward_input = np.array(data.forward_id_input, np.int64)
+        f_input[:forward_input.shape[0]] = forward_input
+        batch_forward_id_input.append(f_input)
+
+
+
     batch_forward_id_target = torch.from_numpy(np.stack(batch_forward_id_target))  # [batch_size, T]
     batch_forward_ion_index = torch.from_numpy(np.stack(batch_forward_ion_index))  # [batch, T, 26, 8]
+    batch_forward_id_input = torch.from_numpy(np.stack(batch_forward_id_input))
 
     batch_backward_ion_index = []
     batch_backward_id_target = []
+    batch_backward_id_input = []
     for data in train_data_list:
         ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
                              np.float32)
@@ -290,20 +304,28 @@ def collate_func(train_data_list):
         ion_index[:backward_ion_index.shape[0], :, :] = backward_ion_index
         batch_backward_ion_index.append(ion_index)
 
-        f_target = np.zeros((batch_max_seq_len,), np.int64)
+        b_target = np.zeros((batch_max_seq_len,), np.int64)
         backward_target = np.array(data.backward_id_target, np.int64)
-        f_target[:backward_target.shape[0]] = backward_target
-        batch_backward_id_target.append(f_target)
+        b_target[:backward_target.shape[0]] = backward_target
+        batch_backward_id_target.append(b_target)
+
+        b_input = np.zeros((batch_max_seq_len,), np.int64)
+        backward_input = np.array(data.backward_id_input, np.int64)
+        b_input[:backward_input.shape[0]] = backward_input
+        batch_backward_id_input.append(b_input)
 
     batch_backward_id_target = torch.from_numpy(np.stack(batch_backward_id_target))  # [batch_size, T]
     batch_backward_ion_index = torch.from_numpy(np.stack(batch_backward_ion_index))  # [batch, T, 26, 8]
+    batch_backward_id_input = torch.from_numpy(np.stack(batch_backward_id_input))
 
     return (peak_location,
             peak_intensity,
             batch_forward_id_target,
             batch_backward_id_target,
             batch_forward_ion_index,
-            batch_backward_ion_index
+            batch_backward_ion_index,
+            batch_forward_id_input,
+            batch_backward_id_input
             )
 
 
