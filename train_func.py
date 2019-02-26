@@ -79,6 +79,7 @@ def build_model(training=True):
         # share embedding matrix
         backward_deepnovo.spectrum_embedding_matrix.weight = forward_deepnovo.spectrum_embedding_matrix.weight
     backward_deepnovo.v.data = forward_deepnovo.v.data
+    logger.info(f"v: {backward_deepnovo.v.data.cpu().numpy()}")
 
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)

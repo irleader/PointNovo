@@ -46,6 +46,10 @@ tf.app.flags.DEFINE_boolean("train",
                             False,
                             "Set to True for training.")
 
+tf.app.flags.DEFINE_boolean("valid",
+                            False,
+                            "set to true for validation")
+
 tf.app.flags.DEFINE_boolean("test_true_feeding",
                             False,
                             "Set to True for testing.")
