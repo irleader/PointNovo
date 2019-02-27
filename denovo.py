@@ -6,7 +6,7 @@ import deepnovo_config
 import numpy as np
 from dataclasses import dataclass
 from model import Direction, InferenceModelWrapper, device
-from deepnovo_cython_modules import get_candidate_intensity
+from deepnovo_cython_modules import get_ion_index
 from data_reader import DeepNovoDenovoDataset, chunks
 from writer import BeamSearchedSequence, DenovoWriter, DDAFeature
 
@@ -116,32 +116,30 @@ class IonCNNDenovo(object):
         direction = start_point_batch[0].direction
         if direction == Direction.forward:
             get_start_mass = lambda x: x.prefix_mass
-            get_spectrum_original = lambda x: x.spectrum_original_forward
             first_label = deepnovo_config.GO_ID
             last_label = deepnovo_config.EOS_ID
         elif direction == Direction.backward:
             get_start_mass = lambda x: x.suffix_mass
-            get_spectrum_original = lambda x: x.spectrum_original_backward
             first_label = deepnovo_config.EOS_ID
             last_label = deepnovo_config.GO_ID
         else:
             raise ValueError('direction neither forward nor backward')
 
-        # step 1: initialize lstm
-        spectrum_holder_batch_list = [x.spectrum_holder for x in feature_dp_batch]
-        # state vectors do not need to be moved to cpu
-        lstm_state0_tuple = model_wrapper.initial_hidden_state(spectrum_holder_batch_list)
-        # TODO support model without lstm
+        # step 1: extract original spectrum
+        batch_peak_location = np.array([x.peak_location for x in feature_dp_batch])
+        batch_peak_intensity = np.array([x.peak_intensity for x in feature_dp_batch])
+
+        batch_peak_location = torch.from_numpy(batch_peak_location).to(device)
+        batch_peak_intensity = torch.from_numpy(batch_peak_intensity).to(device)
 
         # initialize activate search list
         active_search_list = []
         for feature_index in range(num_features):
             # all feature in the same batch should be from same direction
             assert direction == start_point_batch[feature_index].direction
-            if deepnovo_config.use_lstm:
-                state = (lstm_state0_tuple[0][:, feature_index, :], lstm_state0_tuple[1][:, feature_index, :])
-            else:
-                state = None
+
+            state = (batch_peak_location[feature_index], batch_peak_intensity[feature_index])
+
             path = SearchPath(
                 aa_id_list=[first_label],
                 aa_seq_mass=get_start_mass(start_point_batch[feature_index]),
@@ -162,9 +160,9 @@ class IonCNNDenovo(object):
 
             # model input
             block_aa_id_input = []
-            block_intensity_input = []
-            block_lstm_h = []
-            block_lstm_c = []
+            block_ion_location = []
+            block_peak_location = []
+            block_peak_intensity = []
             # data stored in path
             block_aa_id_list = []
             block_aa_seq_mass = []
@@ -180,7 +178,6 @@ class IonCNNDenovo(object):
                 feature_index = search_entry.feature_index
                 current_path_list = search_entry.current_path_list
                 precursor_mass = feature_dp_batch[feature_index].original_dda_feature.mass
-                spectrum_original = get_spectrum_original(feature_dp_batch[feature_index])
                 peak_mass_tolerance = start_point_batch[feature_index].mass_tolerance
 
                 for path in current_path_list:
@@ -189,7 +186,7 @@ class IonCNNDenovo(object):
                     score_sum = path.score_sum
                     aa_seq_mass = path.aa_seq_mass
                     score_list = path.score_list
-                    lstm_state_tuple = path.lstm_state
+                    original_spectrum_tuple = path.lstm_state
 
                     if aa_id == last_label:
                         if abs(aa_seq_mass - precursor_mass) <= peak_mass_tolerance:
@@ -206,10 +203,8 @@ class IonCNNDenovo(object):
                             )
                         continue
 
-                    candidate_intensity = get_candidate_intensity(spectrum_original,
-                                                                  precursor_mass,
-                                                                  aa_seq_mass,
-                                                                  direction_cint_map[direction])
+                    ion_location = get_ion_index(precursor_mass, aa_seq_mass, direction_cint_map[direction])  # [26,8]
+
                     residual_mass = precursor_mass - aa_seq_mass - deepnovo_config.mass_ID[last_label]
                     knapsack_tolerance = int(round(peak_mass_tolerance * deepnovo_config.KNAPSACK_AA_RESOLUTION))
                     knapsack_candidates = self.knapsack_searcher.search_knapsack(residual_mass, knapsack_tolerance)
@@ -218,12 +213,11 @@ class IonCNNDenovo(object):
                         # if not possible aa, force it to stop.
                         knapsack_candidates.append(last_label)
 
-                    block_intensity_input.append(candidate_intensity)
+                    block_ion_location.append(ion_location)
                     block_aa_id_input.append(aa_id)
                     # get hidden state block
-                    if deepnovo_config.use_lstm:
-                        block_lstm_h.append(lstm_state_tuple[0])
-                        block_lstm_c.append(lstm_state_tuple[1])
+                    block_peak_location.append(original_spectrum_tuple[0])
+                    block_peak_intensity.append(original_spectrum_tuple[1])
 
                     block_aa_id_list.append(aa_id_list)
                     block_aa_seq_mass.append(aa_seq_mass)
@@ -236,25 +230,19 @@ class IonCNNDenovo(object):
             # step 3 run model on data blocks to predict next AA.
             #     output is stored in current_log_prob
             # assert block_aa_id_list, 'IonCNNDenovo._beam_search(): aa_id_list is empty.'
-            if not block_intensity_input:
+            if not block_ion_location:
                 # all search entry finished in the previous step
                 break
 
-            block_intensity_input = torch.from_numpy(np.array(block_intensity_input)).to(device)  # [batch, 26, 8, 10]
-            block_intensity_input = torch.unsqueeze(block_intensity_input, dim=1)  # [batch, 1, 26, 8, 10]
-            if deepnovo_config.use_lstm:
-                block_state_tuple = (torch.stack(block_lstm_h, dim=1).contiguous(),
-                                     torch.stack(block_lstm_c, dim=1).contiguous())
-                block_aa_id_input = torch.from_numpy(np.array(block_aa_id_input, dtype=np.int64)).unsqueeze(1).to(
-                    device)  # [batch, 1]
-            else:
-                block_state_tuple = None
-                block_aa_id_input = None
+            block_ion_location = torch.from_numpy(np.array(block_ion_location)).to(device)  # [batch, 26, 8, 10]
+            block_ion_location = torch.unsqueeze(block_ion_location, dim=1)  # [batch, 1, 26, 8]
+            block_peak_location = torch.stack(block_peak_location, dim=0).contiguous()
+            block_peak_intensity = torch.stack(block_peak_intensity, dim=0).contiguous()
 
-            current_log_prob, new_state_tuple = model_wrapper.step(block_intensity_input,
-                                                                   block_aa_id_input,
-                                                                   block_state_tuple,
-                                                                   direction)
+            current_log_prob = model_wrapper.step(block_ion_location,
+                                                  block_peak_location,
+                                                  block_peak_intensity,
+                                                  direction)
             # transfer log_prob back to cpu
             current_log_prob = current_log_prob.cpu().numpy()
 
@@ -273,16 +261,13 @@ class IonCNNDenovo(object):
                         else:
                             new_score_list = block_score_list[index] + [0.0]
                             new_score_sum = block_score_sum[index] + 0.0
-                        if deepnovo_config.use_lstm:
-                            new_path_state_tuple = (new_state_tuple[0][:, index, :], new_state_tuple[1][:, index, :])
-                        else:
-                            new_path_state_tuple = None
+
                         new_path = SearchPath(
                             aa_id_list=block_aa_id_list[index] + [aa_id],
                             aa_seq_mass=block_aa_seq_mass[index] + deepnovo_config.mass_ID[aa_id],
                             score_list=new_score_list,
                             score_sum=new_score_sum,
-                            lstm_state=new_path_state_tuple,
+                            lstm_state=(block_peak_location[index, :], block_peak_intensity[index, :]),
                             direction=direction
                         )
                         new_path_list.append(new_path)
@@ -336,7 +321,8 @@ class IonCNNDenovo(object):
             for beam_search_sequence in candidate_list:
                 sequence = beam_search_sequence.sequence
                 sequence_mass = sum(deepnovo_config.mass_ID[x] for x in sequence)
-                sequence_mass += deepnovo_config.mass_ID[deepnovo_config.GO_ID] + deepnovo_config.mass_ID[deepnovo_config.EOS_ID]
+                sequence_mass += deepnovo_config.mass_ID[deepnovo_config.GO_ID] + deepnovo_config.mass_ID[
+                    deepnovo_config.EOS_ID]
                 if abs(sequence_mass - precursor_mass) <= deepnovo_config.PRECURSOR_MASS_PRECISION_TOLERANCE:
                     logger.debug(f"sequence {sequence} of feature "
                                  f"{feature_dp_batch[feature_index].original_dda_feature.feature_id} refined")

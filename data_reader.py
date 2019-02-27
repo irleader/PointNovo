@@ -9,7 +9,7 @@ import logging
 from dataclasses import dataclass
 
 import deepnovo_config
-from deepnovo_cython_modules import process_spectrum, get_candidate_intensity
+from deepnovo_cython_modules import get_ion_index, process_peaks
 
 logger = logging.getLogger(__name__)
 
@@ -68,21 +68,19 @@ class DDAFeature:
 
 @dataclass
 class DenovoData:
-    spectrum_holder: np.ndarray
-    spectrum_original_forward: np.ndarray
-    spectrum_original_backward: np.ndarray
+    peak_location: np.ndarray
+    peak_intensity: np.ndarray
     original_dda_feature: DDAFeature
 
 
 @dataclass
 class TrainData:
-    spectrum_holder: np.ndarray
-    forward_id_input: list
+    peak_location: np.ndarray
+    peak_intensity: np.ndarray
     forward_id_target: list
-    backward_id_input: list
     backward_id_target: list
-    forward_candidate_intensity: list
-    backward_candidate_intensity: list
+    forward_ion_location_index_list: list
+    backward_ion_location_index_list: list
 
 
 class DeepNovoTrainDataset(Dataset):
@@ -203,37 +201,33 @@ class DeepNovoTrainDataset(Dataset):
         line = self.input_spectrum_handle.readline()
         assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
         mz_list, intensity_list = self._parse_spectrum_ion()
-        spectrum_holder, \
-        spectrum_original_forward, \
-        spectrum_original_backward = process_spectrum(mz_list, intensity_list, feature.mass)
+        peak_location, peak_intensity = process_peaks(mz_list, intensity_list, feature.mass)
 
         peptide_id_list = [deepnovo_config.vocab[x] for x in feature.peptide]
         forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
         forward_id_target = peptide_id_list + [deepnovo_config.EOS_ID]
-        candidate_intensity_forward = []
+        forward_ion_location_index_list = []
         prefix_mass = 0.
         for i, id in enumerate(forward_id_input):
             prefix_mass += deepnovo_config.mass_ID[id]
-            candidate_intensity = get_candidate_intensity(spectrum_original_forward, feature.mass, prefix_mass, 0)
-            candidate_intensity_forward.append(candidate_intensity)
+            ion_location = get_ion_index(feature.mass, prefix_mass, 0)
+            forward_ion_location_index_list.append(ion_location)
 
         backward_id_input = [deepnovo_config.EOS_ID] + peptide_id_list[::-1]
         backward_id_target = peptide_id_list[::-1] + [deepnovo_config.GO_ID]
-        candidate_intensity_backward = []
+        backward_ion_location_index_list = []
         suffix_mass = 0
         for i, id in enumerate(backward_id_input):
             suffix_mass += deepnovo_config.mass_ID[id]
-            candidate_intensity = get_candidate_intensity(spectrum_original_backward, feature.mass, suffix_mass, 1)
-            candidate_intensity_backward.append(candidate_intensity)
-        assert len(candidate_intensity_backward) == len(candidate_intensity_forward) == len(forward_id_target) == len(backward_id_target), \
-            f"{len(candidate_intensity_backward)} {len(candidate_intensity_forward)} {len(forward_id_target)} {len(backward_id_target)}"
-        return TrainData(spectrum_holder=spectrum_holder,
-                         forward_id_input=forward_id_input,
+            ion_location = get_ion_index(feature.mass, suffix_mass, 1)
+            backward_ion_location_index_list.append(ion_location)
+
+        return TrainData(peak_location=peak_location,
+                         peak_intensity=peak_intensity,
                          forward_id_target=forward_id_target,
-                         backward_id_input=backward_id_input,
                          backward_id_target=backward_id_target,
-                         forward_candidate_intensity=candidate_intensity_forward,
-                         backward_candidate_intensity=candidate_intensity_backward)
+                         forward_ion_location_index_list=forward_ion_location_index_list,
+                         backward_ion_location_index_list=backward_ion_location_index_list)
 
     def __getitem__(self, idx):
         if self.input_spectrum_handle is None:
@@ -247,69 +241,68 @@ def collate_func(train_data_list):
 
     :param train_data_list: list of TrainData
     :return:
+        peak_location: [batch, N]
+        peak_intensity: [batch, N]
+        forward_target_id: [batch, T]
+        backward_target_id: [batch, T]
+        forward_ion_index_list: [batch, T, 26, 8]
+        backward_ion_index_list: [batch, T, 26, 8]
     """
     # sort data by seq length (decreasing order)
-    train_data_list.sort(key=lambda x: len(x.forward_id_input), reverse=True)
-    batch_max_seq_len = len(train_data_list[0].forward_id_input)
-    intensity_shape = train_data_list[0].forward_candidate_intensity[0].shape
-    spectrum_holder = [x.spectrum_holder for x in train_data_list]
-    spectrum_holder = np.stack(spectrum_holder) # [batch_size, mz_size]
-    spectrum_holder = torch.from_numpy(spectrum_holder)
+    train_data_list.sort(key=lambda x: len(x.forward_id_target), reverse=True)
+    batch_max_seq_len = len(train_data_list[0].forward_id_target)
+    ion_index_shape = train_data_list[0].forward_ion_location_index_list[0].shape
+    assert ion_index_shape == (deepnovo_config.vocab_size, deepnovo_config.num_ion)
 
-    batch_forward_intensity = []
-    batch_forward_id_input = []
+    peak_location = [x.peak_location for x in train_data_list]
+    peak_location = np.stack(peak_location) # [batch_size, N]
+    peak_location = torch.from_numpy(peak_location)
+
+    peak_intensity = [x.peak_intensity for x in train_data_list]
+    peak_intensity = np.stack(peak_intensity) # [batch_size, N]
+    peak_intensity = torch.from_numpy(peak_intensity)
+
+    batch_forward_ion_index = []
     batch_forward_id_target = []
     for data in train_data_list:
-        f_intensity = np.zeros((batch_max_seq_len, intensity_shape[0], intensity_shape[1], intensity_shape[2]),
+        ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
                                np.float32)
-        forward_intensity = np.stack(data.forward_candidate_intensity)
-        f_intensity[:forward_intensity.shape[0], :, :, :] = forward_intensity
-        batch_forward_intensity.append(f_intensity)
+        forward_ion_index = np.stack(data.forward_ion_location_index_list)
+        ion_index[:forward_ion_index.shape[0], :, :] = forward_ion_index
+        batch_forward_ion_index.append(ion_index)
 
-        f_input = np.zeros((batch_max_seq_len,), np.int64)
         f_target = np.zeros((batch_max_seq_len,), np.int64)
-        forward_input = np.array(data.forward_id_input, np.int64)
-        f_input[:forward_input.shape[0]] = forward_input
         forward_target = np.array(data.forward_id_target, np.int64)
         f_target[:forward_target.shape[0]] = forward_target
-        batch_forward_id_input.append(f_input)
         batch_forward_id_target.append(f_target)
 
-    batch_forward_intensity = torch.from_numpy(np.stack(batch_forward_intensity))  # [batch_size, batch_max_seq_len, 26, 8, 10]
-    batch_forward_id_input = torch.from_numpy(np.stack(batch_forward_id_input))  # [batch_size, batch_max_seq_len]
-    batch_forward_id_target = torch.from_numpy(np.stack(batch_forward_id_target))  # [batch_size, batch_max_seq_len]
+    batch_forward_id_target = torch.from_numpy(np.stack(batch_forward_id_target))  # [batch_size, T]
+    batch_forward_ion_index = torch.from_numpy(np.stack(batch_forward_ion_index))  # [batch, T, 26, 8]
 
-    batch_backward_intensity = []
-    batch_backward_id_input = []
+    batch_backward_ion_index = []
     batch_backward_id_target = []
     for data in train_data_list:
-        b_intensity = np.zeros((batch_max_seq_len, intensity_shape[0], intensity_shape[1], intensity_shape[2]),
-                               np.float32)
-        backward_intensity = np.stack(data.backward_candidate_intensity)
-        b_intensity[:backward_intensity.shape[0], :, :, :] = backward_intensity
-        batch_backward_intensity.append(b_intensity)
+        ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
+                             np.float32)
+        backward_ion_index = np.stack(data.backward_ion_location_index_list)
+        ion_index[:backward_ion_index.shape[0], :, :] = backward_ion_index
+        batch_backward_ion_index.append(ion_index)
 
-        b_input = np.zeros((batch_max_seq_len,), np.int64)
-        b_target = np.zeros((batch_max_seq_len,), np.int64)
-        backward_input = np.array(data.backward_id_input, np.int64)
-        b_input[:backward_input.shape[0]] = backward_input
+        f_target = np.zeros((batch_max_seq_len,), np.int64)
         backward_target = np.array(data.backward_id_target, np.int64)
-        b_target[:backward_target.shape[0]] = backward_target
-        batch_backward_id_input.append(b_input)
-        batch_backward_id_target.append(b_target)
+        f_target[:backward_target.shape[0]] = backward_target
+        batch_backward_id_target.append(f_target)
 
-    batch_backward_intensity = torch.from_numpy(
-        np.stack(batch_backward_intensity))  # [batch_size, batch_max_seq_len, 26, 8, 10]
-    batch_backward_id_input = torch.from_numpy(np.stack(batch_backward_id_input))  # [batch_size, batch_max_seq_len]
-    batch_backward_id_target = torch.from_numpy(np.stack(batch_backward_id_target))  # [batch_size, batch_max_seq_len]
+    batch_backward_id_target = torch.from_numpy(np.stack(batch_backward_id_target))  # [batch_size, T]
+    batch_backward_ion_index = torch.from_numpy(np.stack(batch_backward_ion_index))  # [batch, T, 26, 8]
 
-    return (spectrum_holder,
-            batch_forward_intensity,
-            batch_forward_id_input,
+    return (peak_location,
+            peak_intensity,
             batch_forward_id_target,
-            batch_backward_intensity,
-            batch_backward_id_input,
-            batch_backward_id_target)
+            batch_backward_id_target,
+            batch_forward_ion_index,
+            batch_backward_ion_index
+            )
 
 
 # helper functions
@@ -337,11 +330,8 @@ class DeepNovoDenovoDataset(DeepNovoTrainDataset):
         line = self.input_spectrum_handle.readline()
         assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
         mz_list, intensity_list = self._parse_spectrum_ion()
-        spectrum_holder, \
-        spectrum_original_forward, \
-        spectrum_original_backward = process_spectrum(mz_list, intensity_list, feature.mass)
+        peak_location, peak_intensity = process_peaks(mz_list, intensity_list, feature.mass)
 
-        return DenovoData(spectrum_holder=spectrum_holder,
-                          spectrum_original_forward=spectrum_original_forward,
-                          spectrum_original_backward=spectrum_original_backward,
+        return DenovoData(peak_location=peak_location,
+                          peak_intensity=peak_intensity,
                           original_dda_feature=feature)

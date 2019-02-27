@@ -46,6 +46,10 @@ tf.app.flags.DEFINE_boolean("train",
                             False,
                             "Set to True for training.")
 
+tf.app.flags.DEFINE_boolean("valid",
+                            False,
+                            "set to true for validation")
+
 tf.app.flags.DEFINE_boolean("test_true_feeding",
                             False,
                             "Set to True for testing.")
@@ -94,7 +98,7 @@ tf.app.flags.DEFINE_string("f", "", "")
 
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
-use_lstm = True
+use_lstm = False
 
 # ==============================================================================
 # GLOBAL VARIABLES for VOCABULARY
@@ -204,16 +208,15 @@ mass_AA_min = mass_AA["G"] # 57.02146
 #~ SPECTRUM_RESOLUTION = 10 # bins for 1.0 Da = precision 0.1 Da
 #~ SPECTRUM_RESOLUTION = 20 # bins for 1.0 Da = precision 0.05 Da
 #~ SPECTRUM_RESOLUTION = 40 # bins for 1.0 Da = precision 0.025 Da
-SPECTRUM_RESOLUTION = 50 # bins for 1.0 Da = precision 0.02 Da
-#~ SPECTRUM_RESOLUTION = 100 # bins for 1.0 Da = precision 0.01 Da
-print("SPECTRUM_RESOLUTION ", SPECTRUM_RESOLUTION)
+
 
 # if change, need to re-compile cython_speedup << NO NEED
 WINDOW_SIZE = 10 # 10 bins
 print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
-MZ_SIZE = int(MZ_MAX * SPECTRUM_RESOLUTION) # 30k
+
+MAX_NUM_PEAK = 300
 
 KNAPSACK_AA_RESOLUTION = 10000 # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION)) # 57.02146
@@ -248,11 +251,11 @@ print("weight_decay ", weight_decay)
 #~ print("encoding_cnn_size ", encoding_cnn_size)
 #~ print("encoding_cnn_filter ", encoding_cnn_filter)
 
-embedding_size = 512
+embedding_size = 64
 print("embedding_size ", embedding_size)
 
 num_lstm_layers = 1
-num_units = 512
+num_units = 64
 print("num_lstm_layers ", num_lstm_layers)
 print("num_units ", num_units)
 
@@ -262,7 +265,7 @@ batch_size = 32
 num_workers = 6
 print("batch_size ", batch_size)
 
-num_epoch = 10
+num_epoch = 20
 
 init_lr = 1e-3
 

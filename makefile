@@ -11,6 +11,10 @@ build: clean
 train:
 	python main.py --train
 
+.PHONY: valid
+valid:
+	python main.py --valid
+
 .PHONY: denovo
 denovo:
 	python main.py --search_denovo
