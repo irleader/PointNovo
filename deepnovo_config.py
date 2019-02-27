@@ -368,3 +368,4 @@ pcol_scan_list_middle = 8
 pcol_scan_list_original = 9
 pcol_score_max = 10
 
+distance_scale_factor = 100.

@@ -59,8 +59,9 @@ class DeepNovoPointNet(nn.Module):
     def __init__(self):
         super(DeepNovoPointNet, self).__init__()
         self.t_net = TNet()
-        self.v = nn.Parameter(torch.FloatTensor(1))
-        self.tranform_v = lambda x: 100 * torch.tanh(x)
+        self.distance_scale_factor = deepnovo_config.distance_scale_factor
+        # self.v = nn.Parameter(torch.FloatTensor(1))
+        # self.tranform_v = lambda x: 100 * torch.tanh(x)
 
     def forward(self, location_index, peaks_location, peaks_intensity):
         """
@@ -87,7 +88,7 @@ class DeepNovoPointNet(nn.Module):
 
         location_exp_minus_abs_diff = torch.exp(
             -torch.abs(
-                (peaks_location - location_index) * self.tranform_v(self.v)
+                (peaks_location - location_index) * self.distance_scale_factor
             )
         )
         # [batch, T, N, 26*8]
