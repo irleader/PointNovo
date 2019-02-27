@@ -185,36 +185,17 @@ class InferenceModelWrapper(object):
     a wrapper class so that the beam search part of code is the same for both with lstm and without lstm model.
     TODO(Rui): support no lstm branch here
     """
-    def __init__(self, forward_model: DeepNovoModel, backward_model: DeepNovoModel, spectrum_cnn=None):
-        if spectrum_cnn is None:
-            assert deepnovo_config.use_lstm == False
+    def __init__(self, forward_model: DeepNovoModel, backward_model: DeepNovoModel):
         self.forward_model = forward_model
         self.backward_model = backward_model
-        self.spectrum_cnn = spectrum_cnn
         # make sure all models are in eval mode
         self.forward_model.eval()
         self.backward_model.eval()
-        if deepnovo_config.use_lstm:
-            self.spectrum_cnn.eval()
-        else:
-            assert spectrum_cnn is None
 
-    def initial_hidden_state(self, spectrum_holder_list: list):
+    def step(self, candidate_location, peaks_location, peaks_intensity, aa_input, state_tuple, direction):
         """
-        get initial hidden state
-        :param spectrum_holder: list of np.ndarray
-        :return: (h0, c0), each is [num_layer, batch, num_units] tensor
-        """
-        if not deepnovo_config.use_lstm:
-            return None
-        else:
-            temp = np.array(spectrum_holder_list)
-            with torch.no_grad():
-                spectrum_holder = torch.from_numpy(temp).to(device)
-                return self.spectrum_cnn(spectrum_holder)
-
-    def step(self, candidate_location, peaks_location, peaks_intensity, direction):
-        """
+        :param state_tuple: tuple of ([num_layer, batch_size, num_unit], [num_layer, batch_size, num_unit])
+        :param aa_input: [batch, 1]
         :param candidate_location: [batch, 1, 26, 8]
         :param peaks_location: [batch, N]
         :param peaks_intensity: [batch, N]
@@ -228,10 +209,25 @@ class InferenceModelWrapper(object):
             model = self.backward_model
 
         with torch.no_grad():
-            logit = model(candidate_location, peaks_location, peaks_intensity)
+            if deepnovo_config.use_lstm:
+                logit, new_state_tuple = model(candidate_location, peaks_location, peaks_intensity, aa_input,
+                                               state_tuple)
+            else:
+                logit = model(candidate_location, peaks_location, peaks_intensity)
+                new_state_tuple = None
             logit = torch.squeeze(logit, dim=1)
             log_prob = F.log_softmax(logit)
             #log_prob = F.logsigmoid(logit)
-        return log_prob
+        return log_prob, new_state_tuple
+
+    def initial_hidden_state(self):
+        """
+
+        :param batch_size:
+        :return:
+            [num_layer, num_units], [num_layer, num_units]
+        """
+        h_0, c_0 = self.forward_model.initial_hidden_state(batch_size=1)
+        return h_0[:, 0, :].to(device), c_0[:, 0, :].to(device)
 
 
