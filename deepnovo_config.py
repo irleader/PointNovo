@@ -94,6 +94,8 @@ tf.app.flags.DEFINE_integer("multiprocessor",
                             1,
                             "Use multi processors to read data during training.")
 
+tf.app.flags.DEFINE_string("f", "", "")
+
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
 use_lstm = False
