@@ -25,7 +25,7 @@ class TNet(nn.Module):
         self.fc3 = nn.Linear(num_units, deepnovo_config.vocab_size)
         self.relu = nn.ReLU()
 
-        self.input_batch_norm = nn.BatchNorm1d(26*8 + 1)
+        self.input_batch_norm = nn.BatchNorm1d(deepnovo_config.vocab_size * deepnovo_config.num_ion + 1)
         #self.dropout = nn.Dropout(p=deepnovo_config.dropout_rate)
         self.bn1 = nn.BatchNorm1d(num_units)
         self.bn2 = nn.BatchNorm1d(2*num_units)

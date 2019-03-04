@@ -216,7 +216,7 @@ print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
 
-MAX_NUM_PEAK = 300
+MAX_NUM_PEAK = 500
 
 KNAPSACK_AA_RESOLUTION = 10000 # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION)) # 57.02146
@@ -240,7 +240,7 @@ print("MAX_LEN ", MAX_LEN)
 # ==============================================================================
 
 
-num_ion = 8 # 2
+num_ion = 12
 print("num_ion ", num_ion)
 
 weight_decay = 0.0  # no weight decay lead to better result.
@@ -261,7 +261,7 @@ print("num_units ", num_units)
 
 dropout_rate = 0.25
 
-batch_size = 32
+batch_size = 16
 num_workers = 6
 print("batch_size ", batch_size)
 
