@@ -278,7 +278,7 @@ print("valid_stack_size ", valid_stack_size)
 print("test_stack_size ", test_stack_size)
 print("decode_stack_size ", decode_stack_size)
 
-steps_per_validation = 100 # 100 # 2 # 4 # 200
+steps_per_validation = 300  # 100 # 2 # 4 # 200
 print("steps_per_validation ", steps_per_validation)
 
 max_gradient_norm = 5.0
