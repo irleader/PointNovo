@@ -167,8 +167,8 @@ class DeepNovoPointNetWithLSTM(nn.Module):
         return logit, new_state_tuple
 
     def initial_hidden_state(self, batch_size=deepnovo_config.batch_size):
-        h_0 = torch.zeros(deepnovo_config.num_lstm_layers, batch_size, deepnovo_config.num_units).to(device)
-        c_0 = torch.zeros(deepnovo_config.num_lstm_layers, batch_size, deepnovo_config.num_units).to(device)
+        h_0 = torch.zeros(deepnovo_config.num_lstm_layers, batch_size, deepnovo_config.embedding_size).to(device)
+        c_0 = torch.zeros(deepnovo_config.num_lstm_layers, batch_size, deepnovo_config.embedding_size).to(device)
         return h_0, c_0
 
 
