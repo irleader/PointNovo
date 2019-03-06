@@ -27,7 +27,8 @@ class TNet(nn.Module):
             self.output_layer = nn.Linear(num_units, deepnovo_config.vocab_size)
         self.relu = nn.ReLU()
 
-        self.input_batch_norm = nn.BatchNorm1d(26*8 + 1)
+        self.input_batch_norm = nn.BatchNorm1d(deepnovo_config.vocab_size * deepnovo_config.num_ion + 1)
+
         self.bn1 = nn.BatchNorm1d(num_units)
         self.bn2 = nn.BatchNorm1d(2*num_units)
         self.bn3 = nn.BatchNorm1d(4*num_units)
@@ -59,6 +60,7 @@ class DeepNovoPointNet(nn.Module):
     def __init__(self):
         super(DeepNovoPointNet, self).__init__()
         self.t_net = TNet(with_lstm=False)
+        self.distance_scale_factor = deepnovo_config.distance_scale_factor
 
     def forward(self, location_index, peaks_location, peaks_intensity):
         """
@@ -85,7 +87,7 @@ class DeepNovoPointNet(nn.Module):
 
         location_exp_minus_abs_diff = torch.exp(
             -torch.abs(
-                (peaks_location - location_index) * deepnovo_config.distance_scaling_factor
+                (peaks_location - location_index) * self.distance_scale_factor
             )
         )
         # [batch, T, N, 26*8]
@@ -93,7 +95,7 @@ class DeepNovoPointNet(nn.Module):
         location_exp_minus_abs_diff = location_exp_minus_abs_diff * peaks_location_mask * location_index_mask
 
         input_feature = torch.cat((location_exp_minus_abs_diff, peaks_intensity), dim=3)
-        input_feature = input_feature.view(batch_size*T, N, vocab_size *num_ion + 1)
+        input_feature = input_feature.view(batch_size*T, N, vocab_size*num_ion + 1)
         input_feature = input_feature.transpose(1, 2)
 
         result = self.t_net(input_feature).view(batch_size, T, vocab_size)
@@ -140,7 +142,7 @@ class DeepNovoPointNetWithLSTM(nn.Module):
 
         location_exp_minus_abs_diff = torch.exp(
             -torch.abs(
-                (peaks_location - location_index) * deepnovo_config.distance_scaling_factor
+                (peaks_location - location_index) * deepnovo_config.distance_scale_factor
             )
         )
         # [batch, T, N, 26*8]

@@ -79,6 +79,7 @@ def build_model(training=True):
         # share embedding matrix
         backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
 
+
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)
     return forward_deepnovo, backward_deepnovo

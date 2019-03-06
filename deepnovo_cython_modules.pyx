@@ -22,6 +22,7 @@ cdef int EOS_ID = deepnovo_config.EOS_ID
 cdef float mass_H2O = deepnovo_config.mass_H2O
 cdef float mass_NH3 = deepnovo_config.mass_NH3
 cdef float mass_H = deepnovo_config.mass_H
+cdef float mass_CO = deepnovo_config.mass_CO
 cdef int WINDOW_SIZE = deepnovo_config.WINDOW_SIZE
 cdef int vocab_size = deepnovo_config.vocab_size
 cdef int num_ion = deepnovo_config.num_ion
@@ -44,11 +45,18 @@ def get_ion_index(peptide_mass, prefix_mass, direction):
   elif direction == 1:
     candidate_y_mass = prefix_mass + mass_ID_np
     candidate_b_mass = peptide_mass - candidate_y_mass
+  candidate_a_mass = candidate_b_mass - mass_CO
 
   # b-ions
   candidate_b_H2O = candidate_b_mass - mass_H2O
   candidate_b_NH3 = candidate_b_mass - mass_NH3
   candidate_b_plus2_charge1 = ((candidate_b_mass + 2 * mass_H) / 2
+                               - mass_H)
+
+  # a-ions
+  candidate_a_H2O = candidate_a_mass - mass_H2O
+  candidate_a_NH3 = candidate_a_mass - mass_NH3
+  candidate_a_plus2_charge1 = ((candidate_a_mass + 2 * mass_H) / 2
                                - mass_H)
 
   # y-ions
@@ -71,7 +79,11 @@ def get_ion_index(peptide_mass, prefix_mass, direction):
             candidate_y_H2O,
             candidate_y_NH3,
             candidate_y_plus2_charge1]
-  ion_mass_list = b_ions + y_ions
+  a_ions = [candidate_a_mass,
+            candidate_a_H2O,
+            candidate_a_NH3,
+            candidate_a_plus2_charge1]
+  ion_mass_list = b_ions + y_ions + a_ions
   ion_mass = np.array(ion_mass_list, dtype=np.float32)  # 8 by 26
 
   # ion locations

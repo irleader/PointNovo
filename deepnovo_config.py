@@ -94,6 +94,8 @@ tf.app.flags.DEFINE_integer("multiprocessor",
                             1,
                             "Use multi processors to read data during training.")
 
+tf.app.flags.DEFINE_string("f", "", "")
+
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
 use_lstm = True
@@ -214,7 +216,7 @@ print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
 
-MAX_NUM_PEAK = 300
+MAX_NUM_PEAK = 500
 
 KNAPSACK_AA_RESOLUTION = 10000 # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION)) # 57.02146
@@ -238,7 +240,7 @@ print("MAX_LEN ", MAX_LEN)
 # ==============================================================================
 
 
-num_ion = 8 # 2
+num_ion = 12
 print("num_ion ", num_ion)
 
 weight_decay = 0.0  # no weight decay lead to better result.
@@ -259,7 +261,7 @@ print("num_units ", num_units)
 
 dropout_rate = 0.25
 
-batch_size = 32
+batch_size = 16
 num_workers = 6
 print("batch_size ", batch_size)
 
@@ -276,7 +278,7 @@ print("valid_stack_size ", valid_stack_size)
 print("test_stack_size ", test_stack_size)
 print("decode_stack_size ", decode_stack_size)
 
-steps_per_validation = 100 # 100 # 2 # 4 # 200
+steps_per_validation = 300  # 100 # 2 # 4 # 200
 print("steps_per_validation ", steps_per_validation)
 
 max_gradient_norm = 5.0
@@ -368,4 +370,5 @@ pcol_scan_list_middle = 8
 pcol_scan_list_original = 9
 pcol_score_max = 10
 
-distance_scaling_factor = 100.
+
+distance_scale_factor = 100.
