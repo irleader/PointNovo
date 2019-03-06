@@ -70,6 +70,7 @@ class DDAFeature:
 class DenovoData:
     peak_location: np.ndarray
     peak_intensity: np.ndarray
+    spectrum_representation: np.ndarray
     original_dda_feature: DDAFeature
 
 
@@ -77,6 +78,7 @@ class DenovoData:
 class TrainData:
     peak_location: np.ndarray
     peak_intensity: np.ndarray
+    spectrum_representation: np.ndarray
     forward_id_target: list
     backward_id_target: list
     forward_ion_location_index_list: list
@@ -203,7 +205,7 @@ class DeepNovoTrainDataset(Dataset):
         line = self.input_spectrum_handle.readline()
         assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
         mz_list, intensity_list = self._parse_spectrum_ion()
-        peak_location, peak_intensity = process_peaks(mz_list, intensity_list, feature.mass)
+        peak_location, peak_intensity, spectrum_representation = process_peaks(mz_list, intensity_list, feature.mass)
 
         assert np.max(peak_intensity) < 1.0 + 1e-5
 
@@ -228,6 +230,7 @@ class DeepNovoTrainDataset(Dataset):
 
         return TrainData(peak_location=peak_location,
                          peak_intensity=peak_intensity,
+                         spectrum_representation=spectrum_representation,
                          forward_id_target=forward_id_target,
                          backward_id_target=backward_id_target,
                          forward_ion_location_index_list=forward_ion_location_index_list,
@@ -354,8 +357,9 @@ class DeepNovoDenovoDataset(DeepNovoTrainDataset):
         line = self.input_spectrum_handle.readline()
         assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
         mz_list, intensity_list = self._parse_spectrum_ion()
-        peak_location, peak_intensity = process_peaks(mz_list, intensity_list, feature.mass)
+        peak_location, peak_intensity, spectrum_representation = process_peaks(mz_list, intensity_list, feature.mass)
 
         return DenovoData(peak_location=peak_location,
                           peak_intensity=peak_intensity,
+                          spectrum_representation=spectrum_representation,
                           original_dda_feature=feature)

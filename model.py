@@ -102,6 +102,26 @@ class DeepNovoPointNet(nn.Module):
         return result
 
 
+class InitNet(nn.Module):
+    def __init__(self):
+        super(InitNet, self).__init__()
+        self.init_state_layer = nn.Linear(deepnovo_config.embedding_size, 2 * deepnovo_config.lstm_hidden_units)
+
+    def forward(self, spectrum_representation):
+        """
+
+        :param spectrum_representation: [N, embedding_size]
+        :return:
+        """
+        x = torch.tanh(self.init_state_layer(spectrum_representation))
+        h_0, c_0 = torch.split(x, deepnovo_config.lstm_hidden_units, dim=1)
+        h_0 = torch.unsqueeze(h_0, dim=0)
+        h_0 = h_0.repeat(deepnovo_config.num_lstm_layers, 1, 1)
+        c_0 = torch.unsqueeze(c_0, dim=0)
+        c_0 = c_0.repeat(deepnovo_config.num_lstm_layers, 1, 1)
+        return h_0, c_0
+
+
 class DeepNovoPointNetWithLSTM(nn.Module):
     def __init__(self):
         super(DeepNovoPointNetWithLSTM, self).__init__()
@@ -166,11 +186,6 @@ class DeepNovoPointNetWithLSTM(nn.Module):
         logit = self.output_layer(output_feature)
         return logit, new_state_tuple
 
-    def initial_hidden_state(self, batch_size=deepnovo_config.batch_size):
-        h_0 = torch.zeros(deepnovo_config.num_lstm_layers, batch_size, deepnovo_config.embedding_size).to(device)
-        c_0 = torch.zeros(deepnovo_config.num_lstm_layers, batch_size, deepnovo_config.embedding_size).to(device)
-        return h_0, c_0
-
 
 if deepnovo_config.use_lstm:
     DeepNovoModel = DeepNovoPointNetWithLSTM
@@ -188,12 +203,16 @@ class InferenceModelWrapper(object):
     a wrapper class so that the beam search part of code is the same for both with lstm and without lstm model.
     TODO(Rui): support no lstm branch here
     """
-    def __init__(self, forward_model: DeepNovoModel, backward_model: DeepNovoModel):
+    def __init__(self, forward_model: DeepNovoModel, backward_model: DeepNovoModel, init_net: InitNet=None):
         self.forward_model = forward_model
         self.backward_model = backward_model
         # make sure all models are in eval mode
         self.forward_model.eval()
         self.backward_model.eval()
+        if deepnovo_config.use_lstm:
+            assert init_net is not None
+            self.init_net = init_net
+            self.init_net.eval()
 
     def step(self, candidate_location, peaks_location, peaks_intensity, aa_input, state_tuple, direction):
         """
@@ -223,14 +242,14 @@ class InferenceModelWrapper(object):
             #log_prob = F.logsigmoid(logit)
         return log_prob, new_state_tuple
 
-    def initial_hidden_state(self):
+    def initial_hidden_state(self, spectrum_representation):
         """
 
-        :param batch_size:
+        :param: spectrum_representation, [batch, embedding_size]
         :return:
             [num_layer, num_units], [num_layer, num_units]
         """
-        h_0, c_0 = self.forward_model.initial_hidden_state(batch_size=1)
+        h_0, c_0 = self.init_net(spectrum_representation)
         return h_0[:, 0, :].to(device), c_0[:, 0, :].to(device)
 
 

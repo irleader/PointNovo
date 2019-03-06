@@ -373,3 +373,6 @@ pcol_score_max = 10
 
 
 distance_scale_factor = 100.
+sinusoid_base = 30000.
+spectrum_reso = 10
+n_position = int(MZ_MAX) * spectrum_reso

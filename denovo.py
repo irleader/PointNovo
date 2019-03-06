@@ -129,9 +129,11 @@ class IonCNNDenovo(object):
         # step 1: extract original spectrum
         batch_peak_location = np.array([x.peak_location for x in feature_dp_batch])
         batch_peak_intensity = np.array([x.peak_intensity for x in feature_dp_batch])
+        batch_spectrum_representation = np.array([x.spectrum_representation for x in feature_dp_batch])
 
         batch_peak_location = torch.from_numpy(batch_peak_location).to(device)
         batch_peak_intensity = torch.from_numpy(batch_peak_intensity).to(device)
+        batch_spectrum_representation = torch.from_numpy(batch_spectrum_representation).to(device)
 
         initial_hidden_state_tuple = model_wrapper.initial_hidden_state() if \
             deepnovo_config.use_lstm else None
