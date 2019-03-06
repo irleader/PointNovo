@@ -109,11 +109,12 @@ class DeepNovoPointNetWithLSTM(nn.Module):
         self.embedding = nn.Embedding(num_embeddings=deepnovo_config.vocab_size,
                                       embedding_dim=deepnovo_config.embedding_size)
         self.lstm = nn.LSTM(deepnovo_config.embedding_size,
-                            deepnovo_config.num_units,
+                            deepnovo_config.lstm_hidden_units,
                             num_layers=deepnovo_config.num_lstm_layers,
                             batch_first=True)
         self.dropout = nn.Dropout(deepnovo_config.dropout_rate)
-        self.output_layer = nn.Linear(2*deepnovo_config.num_units, deepnovo_config.vocab_size)
+        self.output_layer = nn.Linear(deepnovo_config.num_units + deepnovo_config.lstm_hidden_units,
+                                      deepnovo_config.vocab_size)
 
     def forward(self, location_index, peaks_location, peaks_intensity, aa_input=None, state_tuple=None):
         """
@@ -158,9 +159,9 @@ class DeepNovoPointNetWithLSTM(nn.Module):
         # embedding
         aa_embedded = self.embedding(aa_input)
         lstm_input = aa_embedded  # [batch, T, embedding_size]
-        lstm_input = self.dropout(lstm_input)
+        # lstm_input = self.dropout(lstm_input)
         output_feature, new_state_tuple = self.lstm(lstm_input, state_tuple)
-        output_feature = torch.cat((ion_feature, output_feature), dim=2)
+        output_feature = torch.cat((ion_feature, activation_func(output_feature)), dim=2)
         output_feature = self.dropout(output_feature)
         logit = self.output_layer(output_feature)
         return logit, new_state_tuple
