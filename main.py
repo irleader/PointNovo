@@ -23,8 +23,8 @@ def main():
         denovo_worker = IonCNNDenovo(deepnovo_config.MZ_MAX,
                                      deepnovo_config.knapsack_file,
                                      beam_size=deepnovo_config.FLAGS.beam_size)
-        forward_deepnovo, backward_deepnovo = build_model(training=False)
-        model_wrapper = InferenceModelWrapper(forward_deepnovo, backward_deepnovo)
+        forward_deepnovo, backward_deepnovo, init_net = build_model(training=False)
+        model_wrapper = InferenceModelWrapper(forward_deepnovo, backward_deepnovo, init_net)
         writer = DenovoWriter(deepnovo_config.denovo_output_file)
         denovo_worker.search_denovo(model_wrapper, data_reader, writer)
     elif deepnovo_config.FLAGS.valid:
@@ -35,10 +35,10 @@ def main():
                                                         shuffle=False,
                                                         num_workers=deepnovo_config.num_workers,
                                                         collate_fn=collate_func)
-        forward_deepnovo, backward_deepnovo = build_model(training=False)
+        forward_deepnovo, backward_deepnovo, init_net = build_model(training=False)
         forward_deepnovo.eval()
         backward_deepnovo.eval()
-        validation_loss = validation(forward_deepnovo, backward_deepnovo, valid_data_loader)
+        validation_loss = validation(forward_deepnovo, backward_deepnovo, init_net, valid_data_loader)
         logger.info(f"validation perplexity: {perplexity(validation_loss)}")
 
     elif deepnovo_config.FLAGS.test:

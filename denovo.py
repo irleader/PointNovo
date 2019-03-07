@@ -135,7 +135,7 @@ class IonCNNDenovo(object):
         batch_peak_intensity = torch.from_numpy(batch_peak_intensity).to(device)
         batch_spectrum_representation = torch.from_numpy(batch_spectrum_representation).to(device)
 
-        initial_hidden_state_tuple = model_wrapper.initial_hidden_state() if \
+        initial_hidden_state_tuple = model_wrapper.initial_hidden_state(batch_spectrum_representation) if \
             deepnovo_config.use_lstm else None
 
         # initialize activate search list
@@ -151,7 +151,9 @@ class IonCNNDenovo(object):
                 aa_seq_mass=get_start_mass(start_point_batch[feature_index]),
                 score_list=[0.0],
                 score_sum=0.0,
-                lstm_state=initial_hidden_state_tuple,
+                lstm_state=(initial_hidden_state_tuple[0][:, feature_index, :],
+                            initial_hidden_state_tuple[1][:, feature_index, :]
+                            ),
                 direction=direction,
             )
             search_entry = SearchEntry(

@@ -112,6 +112,7 @@ class InitNet(nn.Module):
 
         :param spectrum_representation: [N, embedding_size]
         :return:
+            [num_lstm_layers, batch_size, lstm_units], [num_lstm_layers, batch_size, lstm_units],
         """
         x = torch.tanh(self.init_state_layer(spectrum_representation))
         h_0, c_0 = torch.split(x, deepnovo_config.lstm_hidden_units, dim=1)
@@ -247,7 +248,7 @@ class InferenceModelWrapper(object):
 
         :param: spectrum_representation, [batch, embedding_size]
         :return:
-            [num_layer, num_units], [num_layer, num_units]
+            [num_lstm_layers, batch_size, lstm_units], [num_lstm_layers, batch_size, lstm_units],
         """
         h_0, c_0 = self.init_net(spectrum_representation)
         return h_0[:, 0, :].to(device), c_0[:, 0, :].to(device)
