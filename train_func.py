@@ -4,7 +4,7 @@ from torch import optim
 import torch.nn.functional as F
 import deepnovo_config
 from data_reader import DeepNovoTrainDataset, collate_func
-from model import DeepNovoModel, device
+from model import DeepNovoModel, device, InitNet
 import time
 import math
 import logging
@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 forward_model_save_name = 'forward_deepnovo.pth'
 backward_model_save_name = 'backward_deepnovo.pth'
+init_net_save_name = 'init_net.pth'
 
 logger.info(f"using device: {device}")
 
@@ -61,6 +62,10 @@ def build_model(training=True):
     """
     forward_deepnovo = DeepNovoModel()
     backward_deepnovo = DeepNovoModel()
+    if deepnovo_config.use_lstm:
+        init_net = InitNet()
+    else:
+        init_net = None
 
     # load pretrained params if exist
     if os.path.exists(os.path.join(deepnovo_config.train_dir, forward_model_save_name)):
@@ -70,6 +75,9 @@ def build_model(training=True):
                                                     map_location=device))
         backward_deepnovo.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, backward_model_save_name),
                                                      map_location=device))
+        if deepnovo_config.use_lstm:
+            init_net.load_state_dict(torch.load(os.path.join(deepnovo_config.train_dir, init_net_save_name),
+                                                map_location=device))
     else:
         assert training, f"building model for testing, but could not found weight under directory " \
                          f"{deepnovo_config.train_dir}"
@@ -79,10 +87,10 @@ def build_model(training=True):
         # share embedding matrix
         backward_deepnovo.embedding.weight = forward_deepnovo.embedding.weight
 
-
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)
-    return forward_deepnovo, backward_deepnovo
+    init_net = init_net.to(device)
+    return forward_deepnovo, backward_deepnovo, init_net
 
 
 def extract_and_move_data(data):
@@ -93,6 +101,7 @@ def extract_and_move_data(data):
     """
     peak_location, \
     peak_intensity, \
+    spectrum_representation,\
     batch_forward_id_target, \
     batch_backward_id_target, \
     batch_forward_ion_index, \
@@ -103,6 +112,7 @@ def extract_and_move_data(data):
     # move to device
     peak_location = peak_location.to(device)
     peak_intensity = peak_intensity.to(device)
+    spectrum_representation = spectrum_representation.to(device)
     batch_forward_id_target = batch_forward_id_target.to(device)
     batch_backward_id_target = batch_backward_id_target.to(device)
     batch_forward_ion_index = batch_forward_ion_index.to(device)
@@ -111,6 +121,7 @@ def extract_and_move_data(data):
     batch_backward_id_input = batch_backward_id_input.to(device)
     return (peak_location,
             peak_intensity,
+            spectrum_representation,
             batch_forward_id_target,
             batch_backward_id_target,
             batch_forward_ion_index,
@@ -120,13 +131,14 @@ def extract_and_move_data(data):
             )
 
 
-def validation(forward_deepnovo, backward_deepnovo, valid_loader) -> float:
+def validation(forward_deepnovo, backward_deepnovo, init_net, valid_loader) -> float:
     with torch.no_grad():
         valid_loss = 0
         num_valid_samples = 0
         for data in valid_loader:
             peak_location, \
             peak_intensity, \
+            spectrum_representation, \
             batch_forward_id_target, \
             batch_backward_id_target, \
             batch_forward_ion_index, \
@@ -135,11 +147,11 @@ def validation(forward_deepnovo, backward_deepnovo, valid_loader) -> float:
             batch_backward_id_input = extract_and_move_data(data)
             batch_size = batch_backward_id_target.size(0)
             if deepnovo_config.use_lstm:
-                zero_initial_state_tuple = forward_deepnovo.initial_hidden_state(batch_size=batch_size)
+                initial_state_tuple = init_net(spectrum_representation)
                 forward_logit, _ = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity,
-                                                    batch_forward_id_input, zero_initial_state_tuple)
+                                                    batch_forward_id_input, initial_state_tuple)
                 backward_logit, _ = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity,
-                                                      batch_backward_id_input, zero_initial_state_tuple)
+                                                      batch_backward_id_input, initial_state_tuple)
             else:
                 forward_logit = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity)
                 backward_logit = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity)
@@ -163,11 +175,13 @@ def adjust_learning_rate(optimizer, epoch):
         param_group['lr'] = lr
 
 
-def save_model(forward_deepnovo, backward_deepnovo):
+def save_model(forward_deepnovo, backward_deepnovo, init_net):
     torch.save(forward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
                                                            forward_model_save_name))
     torch.save(backward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
                                                             backward_model_save_name))
+    torch.save(init_net.state_dict(), os.path.join(deepnovo_config.train_dir,
+                                                   init_net_save_name))
 
 
 def train():
@@ -188,7 +202,7 @@ def train():
                                                     shuffle=False,
                                                     num_workers=deepnovo_config.num_workers,
                                                     collate_fn=collate_func)
-    forward_deepnovo, backward_deepnovo = build_model()
+    forward_deepnovo, backward_deepnovo, init_net = build_model()
     # sparse_params = forward_deepnovo.spectrum_embedding_matrix.parameters()
     dense_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
 
@@ -215,6 +229,7 @@ def train():
 
             peak_location, \
             peak_intensity, \
+            spectrum_representation, \
             batch_forward_id_target, \
             batch_backward_id_target, \
             batch_forward_ion_index, \
@@ -224,11 +239,11 @@ def train():
             batch_size = batch_backward_id_target.size(0)
 
             if deepnovo_config.use_lstm:
-                zero_initial_state_tuple = forward_deepnovo.initial_hidden_state(batch_size=batch_size)
+                initial_state_tuple = init_net(spectrum_representation)
                 forward_logit, _ = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity,
-                                                    batch_forward_id_input, zero_initial_state_tuple)
+                                                    batch_forward_id_input, initial_state_tuple)
                 backward_logit, _ = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity,
-                                                      batch_backward_id_input, zero_initial_state_tuple)
+                                                      batch_backward_id_input, initial_state_tuple)
             else:
                 forward_logit = forward_deepnovo(batch_forward_ion_index, peak_location, peak_intensity)
                 backward_logit = backward_deepnovo(batch_backward_ion_index, peak_location, peak_intensity)
@@ -251,7 +266,7 @@ def train():
                 # evaluation mode
                 forward_deepnovo.eval()
                 backward_deepnovo.eval()
-                validation_loss = validation(forward_deepnovo, backward_deepnovo, valid_data_loader)
+                validation_loss = validation(forward_deepnovo, backward_deepnovo, init_net, valid_data_loader)
                 dense_scheduler.step(validation_loss)
                 # sparse_scheduler.step(validation_loss)
 
@@ -265,7 +280,7 @@ def train():
                     best_epoch = epoch
                     best_step = i
                     # save model if achieve a new best valid loss
-                    save_model(forward_deepnovo, backward_deepnovo)
+                    save_model(forward_deepnovo, backward_deepnovo, init_net)
 
                 # back to train model
                 forward_deepnovo.train()

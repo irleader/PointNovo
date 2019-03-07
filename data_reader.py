@@ -271,6 +271,10 @@ def collate_func(train_data_list):
     peak_intensity = np.stack(peak_intensity) # [batch_size, N]
     peak_intensity = torch.from_numpy(peak_intensity)
 
+    spectrum_representation = [x.spectrum_representation for x in train_data_list]
+    spectrum_representation = np.stack(spectrum_representation)  # [batch_size, embed_size]
+    spectrum_representation = torch.from_numpy(spectrum_representation)
+
     batch_forward_ion_index = []
     batch_forward_id_target = []
     batch_forward_id_input = []
@@ -323,6 +327,7 @@ def collate_func(train_data_list):
 
     return (peak_location,
             peak_intensity,
+            spectrum_representation,
             batch_forward_id_target,
             batch_backward_id_target,
             batch_forward_ion_index,
