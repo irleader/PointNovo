@@ -250,7 +250,8 @@ class InferenceModelWrapper(object):
         :return:
             [num_lstm_layers, batch_size, lstm_units], [num_lstm_layers, batch_size, lstm_units],
         """
-        h_0, c_0 = self.init_net(spectrum_representation)
-        return h_0[:, 0, :].to(device), c_0[:, 0, :].to(device)
+        with torch.no_grad():
+            h_0, c_0 = self.init_net(spectrum_representation)
+            return h_0.to(device), c_0.to(device)
 
 
