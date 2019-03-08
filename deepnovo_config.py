@@ -251,18 +251,18 @@ print("weight_decay ", weight_decay)
 #~ print("encoding_cnn_size ", encoding_cnn_size)
 #~ print("encoding_cnn_filter ", encoding_cnn_filter)
 
-embedding_size = 256
+embedding_size = 512
 print("embedding_size ", embedding_size)
 
 num_lstm_layers = 1
 num_units = 64
-lstm_hidden_units = 256
+lstm_hidden_units = 512
 print("num_lstm_layers ", num_lstm_layers)
 print("num_units ", num_units)
 
 dropout_rate = 0.25
 
-batch_size = 16
+batch_size = 32
 num_workers = 6
 print("batch_size ", batch_size)
 
