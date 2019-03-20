@@ -78,9 +78,9 @@ class DeepNovoPointNet(nn.Module):
 
         peaks_location = peaks_location.view(batch_size, 1, N, 1)
         peaks_intensity = peaks_intensity.view(batch_size, 1, N, 1)
-        peaks_location = peaks_location.repeat(1, T, 1, 1)  # [batch, T, N, 1]
+        peaks_location = peaks_location.expand(-1, T, -1, -1)  # [batch, T, N, 1]
         peaks_location_mask = (peaks_location > 1e-5).float()
-        peaks_intensity = peaks_intensity.repeat(1, T, 1, 1)  # [batch, T, N, 1]
+        peaks_intensity = peaks_intensity.expand(-1, T, -1, -1)  # [batch, T, N, 1]
 
         location_index = location_index.view(batch_size, T, 1, vocab_size*num_ion)
         location_index_mask = (location_index > 1e-5).float()
@@ -155,9 +155,9 @@ class DeepNovoPointNetWithLSTM(nn.Module):
 
         peaks_location = peaks_location.view(batch_size, 1, N, 1)
         peaks_intensity = peaks_intensity.view(batch_size, 1, N, 1)
-        peaks_location = peaks_location.repeat(1, T, 1, 1)  # [batch, T, N, 1]
+        peaks_location = peaks_location.expand(-1, T, -1, -1)  # [batch, T, N, 1]
         peaks_location_mask = (peaks_location > 1e-5).float()
-        peaks_intensity = peaks_intensity.repeat(1, T, 1, 1)  # [batch, T, N, 1]
+        peaks_intensity = peaks_intensity.expand(-1, T, -1, -1)  # [batch, T, N, 1]
 
         location_index = location_index.view(batch_size, T, 1, vocab_size * num_ion)
         location_index_mask = (location_index > 1e-5).float()
