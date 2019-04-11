@@ -317,6 +317,12 @@ input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jur
 # denovo files
 denovo_input_spectrum_file = "ABRF_DDA/spectrums.mgf"
 denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
+
+# denovo_input_spectrum_file = "high.clambacteria.PXD004536/spectrum.mgf"  # endoloripes
+# denovo_input_feature_file = "high.clambacteria.PXD004536/features.csv"
+#
+# denovo_input_spectrum_file = "high.bacillus.PXD004565/spectrum.mgf"
+# denovo_input_feature_file = "high.bacillus.PXD004565/features.csv"
 denovo_output_file = denovo_input_feature_file + ".deepnovo_denovo"
 # db files
 #~ db_fasta_file = "data/uniprot_sprot.human.db_decoy.fasta"
