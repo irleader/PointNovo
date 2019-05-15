@@ -89,7 +89,8 @@ def build_model(training=True):
 
     backward_deepnovo = backward_deepnovo.to(device)
     forward_deepnovo = forward_deepnovo.to(device)
-    init_net = init_net.to(device)
+    if deepnovo_config.use_lstm:
+        init_net = init_net.to(device)
     return forward_deepnovo, backward_deepnovo, init_net
 
 
@@ -180,7 +181,8 @@ def save_model(forward_deepnovo, backward_deepnovo, init_net):
                                                            forward_model_save_name))
     torch.save(backward_deepnovo.state_dict(), os.path.join(deepnovo_config.train_dir,
                                                             backward_model_save_name))
-    torch.save(init_net.state_dict(), os.path.join(deepnovo_config.train_dir,
+    if deepnovo_config.use_lstm:
+        torch.save(init_net.state_dict(), os.path.join(deepnovo_config.train_dir,
                                                    init_net_save_name))
 
 
