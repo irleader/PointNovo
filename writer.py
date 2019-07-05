@@ -74,3 +74,89 @@ class DenovoWriter(object):
 
     def __del__(self):
         self.close()
+
+
+@dataclass
+class PSM:
+    feature_id: str
+    scan: str
+    num_id: int
+    exp_mass: float
+    calc_mass: float
+    charge: int
+    peptide_str: str
+    accession_id: str
+    is_decoy: bool
+    length_score: float
+    log_length_score: float
+    length_normalized_score: float
+    log_length_normalized_score: float
+    ppm: float
+    peptide_length: int
+    num_var_mod: int
+
+
+class PercolatorWriter(object):
+    def __init__(self, denovo_output_file):
+        self.output_handle = open(denovo_output_file, 'w')
+        header_list = ["FeatureID",  # 0
+                       "Label",  # 1
+                       "ScanNr",  # 2
+                       "ExpMass",  # 3
+                       "CalcMass",  # 4
+                       "LengthScore",  # 5
+                       "LengthNormalizedScore",  # 6
+                       "LogLengthScore",  # 7
+                       "LogLengthNormalizedScore",  # 8
+                       "Ppm",  # 9
+                       "PepLen",  # 10
+                       "Charge1",  # 11
+                       "Charge2",  # 12
+                       "Charge3",  # 13
+                       "Charge4",  # 14
+                       "Charge5",  # 15
+                       "Charge6",  # 16
+                       "NumVarMod",  # 17
+                       "Peptide",  # 18
+                       "Proteins",  # 19
+                       ]
+        header_row = "\t".join(header_list)
+        print(header_row, file=self.output_handle, end='\n')
+
+    def close(self):
+        self.output_handle.close()
+
+    def write(self, psm: PSM):
+        feature_id = psm.feature_id + '_' + str(psm.num_id)
+        label = str(psm.is_decoy is False)
+        scan_nr = psm.scan
+        exp_mass = "{:.4f}".format(psm.exp_mass)
+        calc_mass = "{:.4f}".format(psm.calc_mass)
+        length_score = "{:.4f}".format(psm.length_score)
+        length_normalized_score = "{:.4f}".format(psm.length_normalized_score)
+        log_length_score = "{:.4f}".format(psm.log_length_score)
+        log_length_normalized_score = "{:.4f}".format(psm.log_length_normalized_score)
+        ppm = "{:.4f}".format(psm.ppm)
+        pep_len = str(psm.peptide_length)
+
+        print_list = [feature_id,
+                      label,
+                      scan_nr,
+                      exp_mass,
+                      calc_mass,
+                      length_score,
+                      length_normalized_score,
+                      log_length_score,
+                      log_length_normalized_score,
+                      ppm,
+                      pep_len]
+
+        charge = ["0"] * 6
+        charge_index = min(psm.charge - 1, 5)
+        charge[charge_index] = "1"
+        print_list += charge
+
+        print_list.append(str(psm.num_var_mod))
+        print_list.append(psm.peptide_str)
+        print_list.append(psm.accession_id)
+        print("\t".join(print_list), file=self.output_handle, end="\n")

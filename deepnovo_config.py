@@ -11,7 +11,7 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-
+from itertools import combinations
 # ==============================================================================
 # FLAGS (options) for this app
 # ==============================================================================
@@ -73,10 +73,6 @@ tf.app.flags.DEFINE_boolean("search_denovo",
                             False,
                             "Set to True to do a denovo search.")
 
-tf.app.flags.DEFINE_boolean("search_hybrid",
-                            False,
-                            "Set to True to do a hybrid, db+denovo, search.")
-
 tf.app.flags.DEFINE_boolean("test",
                             False,
                             "Set to True to test the prediction accuracy.")
@@ -97,7 +93,7 @@ tf.app.flags.DEFINE_string("f", "", "")
 
 FLAGS = tf.app.flags.FLAGS
 train_dir = FLAGS.train_dir
-use_lstm = True
+use_lstm = False
 
 # ==============================================================================
 # GLOBAL VARIABLES for VOCABULARY
@@ -115,16 +111,19 @@ GO_ID = 1
 EOS_ID = 2
 assert PAD_ID == 0
 
+
+
+
 vocab_reverse = ['A',
                  'R',
                  'N',
-                 'N(Deamidation)',
+                 # 'N(Deamidation)',
                  'D',
                  # 'C',
                  'C(Carbamidomethylation)',
                  'E',
                  'Q',
-                 'Q(Deamidation)',
+                 # 'Q(Deamidation)',
                  'G',
                  'H',
                  'I',
@@ -153,7 +152,71 @@ print("Training vocab ", vocab)
 vocab_size = len(vocab_reverse)
 print("Training vocab_size ", vocab_size)
 
+# database search parameter
+fix_mod_dict = {"C": "C(Carbamidomethylation)"}
+var_mod_dict = {"N": "N(Deamidation)", 'Q': 'Q(Deamidation)', 'M': 'M(Oxidation)'}
+max_num_mod = 3
+db_ppm_tolenrance = 20.
+semi_cleavage = False
 
+normalizing_std_n = 150
+normalizing_mean_n = 10
+
+inference_value_max_batch_size = 50
+num_psm_per_scan_for_percolator = 10
+db_fasta_file = "fasta_files/peaks_small_db_with_decoy.fasta"
+
+
+def _fix_transform(aa: str):
+    def trans(peptide: list):
+        return [x if x != aa else fix_mod_dict[x] for x in peptide]
+    return trans
+
+
+def fix_mod_peptide_transform(peptide: list):
+    """
+    apply fix modification transform on a peptide
+    :param peptide:
+    :return:
+    """
+    for aa in fix_mod_dict.keys():
+        trans = _fix_transform(aa)
+        peptide = trans(peptide)
+    return peptide
+
+
+def _find_all_ptm(peptide, position_list):
+    if len(position_list) == 0:
+        return [peptide]
+    position = position_list[0]
+    aa = peptide[position]
+    result = []
+    temp = peptide[:]
+    temp[position] = var_mod_dict[aa]
+    result += _find_all_ptm(temp, position_list[1:])
+    return result
+
+
+def var_mod_peptide_transform(peptide: list):
+    """
+    apply var modification transform on a peptide, the max number of var mod is max_num_mod
+    :param peptide:
+    :return:
+    """
+    position_list = [position for position, aa in enumerate(peptide) if aa in var_mod_dict]
+    position_count = len(position_list)
+    num_mod = min(position_count, max_num_mod)
+    position_combination_list = []
+    for x in range(1, num_mod+1):
+        position_combination_list += combinations(position_list, x)
+    # find all ptm peptides
+    ptm_peptide_list = []
+    for position_combination in position_combination_list:
+        ptm_peptide_list += _find_all_ptm(peptide, position_combination)
+    return ptm_peptide_list
+
+
+# mass value
 mass_H = 1.0078
 mass_H2O = 18.0106
 mass_NH3 = 17.0265
@@ -218,7 +281,7 @@ print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 3000.0
 
-MAX_NUM_PEAK = 1000
+MAX_NUM_PEAK = 800
 
 KNAPSACK_AA_RESOLUTION = 10000  # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION))  # 57.02146
@@ -263,7 +326,7 @@ print("num_units ", num_units)
 
 dropout_rate = 0.25
 
-batch_size = 32
+batch_size = 16
 num_workers = 6
 print("batch_size ", batch_size)
 
@@ -294,8 +357,6 @@ print("max_gradient_norm ", max_gradient_norm)
 data_format = "mgf"
 cleavage_rule = "trypsin"
 num_missed_cleavage = 2
-fixed_mod_list = ['C']
-var_mod_list = ['N', 'Q', 'M']
 num_mod = 3
 precursor_mass_tolerance = 0.01  # Da
 precursor_mass_ppm = 15.0 / 1000000  # ppm (20 better) # instead of absolute 0.01 Da
@@ -317,6 +378,11 @@ input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jur
 # denovo files
 denovo_input_spectrum_file = "ABRF_DDA/spectrums.mgf"
 denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
+
+# db search files
+search_db_input_spectrum_file = "PXD011170/spectrum.mgf"
+search_db_input_feature_file = "PXD011170/features.csv"
+db_output_file = search_db_input_feature_file + '.pin'
 
 # denovo_input_spectrum_file = "high.clambacteria.PXD004536/spectrum.mgf"  # endoloripes
 # denovo_input_feature_file = "high.clambacteria.PXD004536/features.csv"

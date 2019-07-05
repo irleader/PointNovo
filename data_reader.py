@@ -1,6 +1,8 @@
 import os
 import torch
 from torch.utils.data import Dataset
+from db_searcher import DataBaseSearcher
+import time
 import numpy as np
 import pickle
 import csv
@@ -39,6 +41,10 @@ def parse_raw_sequence(raw_sequence: str):
             peptide.append(raw_sequence[index])
             index += 1
 
+    for aa in peptide:
+        if aa not in deepnovo_config.vocab:
+            logger.warning(f"unknown modification in seq {raw_sequence}")
+            return False, peptide
     return True, peptide
 
 
@@ -87,7 +93,7 @@ class TrainData:
     backward_id_input: list
 
 
-class DeepNovoTrainDataset(Dataset):
+class BaseDataset(Dataset):
     def __init__(self, feature_filename, spectrum_filename, transform=None):
         """
         read all feature information and store in memory,
@@ -149,7 +155,7 @@ class DeepNovoTrainDataset(Dataset):
                     skipped_by_mass += 1
                     logger.debug(f"{line[seq_index]} skipped by mass")
                     continue
-                if len(peptide) >= deepnovo_config.MAX_LEN:
+                if len(peptide) > deepnovo_config.MAX_LEN - 2:
                     skipped_by_length += 1
                     logger.debug(f"{line[seq_index]} skipped by length")
                     continue
@@ -188,6 +194,17 @@ class DeepNovoTrainDataset(Dataset):
             line = self.input_spectrum_handle.readline()
         return mz_list, intensity_list
 
+    def _get_feature(self, feature: DDAFeature):
+        raise NotImplementedError("subclass should implement _get_feature method")
+
+    def __getitem__(self, idx):
+        if self.input_spectrum_handle is None:
+            self.input_spectrum_handle = open(self.spectrum_filename, 'r')
+        feature = self.feature_list[idx]
+        return self._get_feature(feature)
+
+
+class DeepNovoTrainDataset(BaseDataset):
     def _get_feature(self, feature: DDAFeature) -> TrainData:
         spectrum_location = self.spectrum_location_dict[feature.scan]
         self.input_spectrum_handle.seek(spectrum_location)
@@ -237,12 +254,6 @@ class DeepNovoTrainDataset(Dataset):
                          backward_ion_location_index_list=backward_ion_location_index_list,
                          forward_id_input=forward_id_input,
                          backward_id_input=backward_id_input)
-
-    def __getitem__(self, idx):
-        if self.input_spectrum_handle is None:
-            self.input_spectrum_handle = open(self.spectrum_filename, 'r')
-        feature = self.feature_list[idx]
-        return self._get_feature(feature)
 
 
 def collate_func(train_data_list):
@@ -368,3 +379,158 @@ class DeepNovoDenovoDataset(DeepNovoTrainDataset):
                           peak_intensity=peak_intensity,
                           spectrum_representation=spectrum_representation,
                           original_dda_feature=feature)
+
+
+@dataclass
+class DBSearchData:
+    peak_location: np.ndarray  # (N, )
+    peak_intensity: np.ndarray  # (N, )
+    forward_id_target: np.ndarray  # (num_candidate, T)
+    backward_id_target: np.ndarray  # (num_candidate, T)
+    forward_ion_location_index: np.ndarray  # (num_candidate, T, 26, 12)
+    backward_ion_location_index: np.ndarray  # (num_candidate, T, 26, 12)
+    ppm: np.ndarray  # (num_seq_per_sample,)
+    num_var_mod: np.ndarray  # (num_seq_per_sample)
+    charge: np.ndarray  # (num_seq_per_sample)
+    precursor_mass: float
+    peptide_candidates: list  # list of PeptideCandidate
+    dda_feature: DDAFeature
+
+
+class DBSearchDataset(BaseDataset):
+    def __init__(self, feature_filename, spectrum_filename, db_searcher: DataBaseSearcher):
+        super(DBSearchDataset, self).__init__(feature_filename, spectrum_filename)
+        self.db_searcher = db_searcher
+
+    @staticmethod
+    def peptide_to_aa_id_seq(peptide: list, direction=0):
+        """
+
+        :param peptide:
+        :param direction: 0 for forward, 1 for backward
+        :return:
+        """
+        if len(peptide) > deepnovo_config.MAX_LEN - 2:
+            raise ValueError(f"received a peptide longer than {deepnovo_config.MAX_LEN}")
+        aa_id_seq = [deepnovo_config.vocab[aa] for aa in peptide]
+        aa_id_seq.insert(0, deepnovo_config.GO_ID)
+        aa_id_seq.append(deepnovo_config.EOS_ID)
+        if direction != 0:
+            aa_id_seq = aa_id_seq[::-1]
+        aa_id_seq = pad_to_length(aa_id_seq, deepnovo_config.PAD_ID, deepnovo_config.MAX_LEN)
+        return aa_id_seq
+
+    def _get_feature(self, feature: DDAFeature):
+        start_time = time.time()
+        spectrum_location = self.spectrum_location_dict[feature.scan]
+        self.input_spectrum_handle.seek(spectrum_location)
+        # parse header lines
+        line = self.input_spectrum_handle.readline()
+        assert "BEGIN IONS" in line, "Error: wrong input BEGIN IONS"
+        line = self.input_spectrum_handle.readline()
+        assert "TITLE=" in line, "Error: wrong input TITLE="
+        line = self.input_spectrum_handle.readline()
+        assert "PEPMASS=" in line, "Error: wrong input PEPMASS="
+        line = self.input_spectrum_handle.readline()
+        assert "CHARGE=" in line, "Error: wrong input CHARGE="
+        line = self.input_spectrum_handle.readline()
+        assert "SCANS=" in line, "Error: wrong input SCANS="
+        line = self.input_spectrum_handle.readline()
+        assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
+        mz_list, intensity_list = self._parse_spectrum_ion()
+        peak_location, peak_intensity, _ = process_peaks(mz_list, intensity_list, feature.mass)
+        precursor_mass = feature.mass
+
+        candidate_list = self.db_searcher.search_peptide_by_mass(precursor_mass, pad_with_random_permutation=True)
+        if len(candidate_list) == 0:
+            #  no candidates
+            return None
+
+        forward_id_target_arr = []
+        backward_id_target_arr = []
+        forward_ion_location_index_arr = []
+        backward_ion_location_index_arr = []
+        ppm_arr = []
+        num_var_mod_arr = []
+        charge_arr = feature.z * np.ones(len(candidate_list), dtype=np.float32)
+
+        for pc in candidate_list:
+            ppm_arr.append(pc.ppm)
+            num_var_mod_arr.append(pc.num_var_mod)
+
+            peptide_id_list = [deepnovo_config.vocab[x] for x in pc.seq]
+            forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
+            forward_id_target = peptide_id_list + [deepnovo_config.EOS_ID]
+            forward_ion_location_index_list = []
+            prefix_mass = 0.
+            for i, id in enumerate(forward_id_input):
+                prefix_mass += deepnovo_config.mass_ID[id]
+                ion_location = get_ion_index(feature.mass, prefix_mass, 0)
+                forward_ion_location_index_list.append(ion_location)
+
+            backward_id_input = [deepnovo_config.EOS_ID] + peptide_id_list[::-1]
+            backward_id_target = peptide_id_list[::-1] + [deepnovo_config.GO_ID]
+            backward_ion_location_index_list = []
+            suffix_mass = 0
+            for i, id in enumerate(backward_id_input):
+                suffix_mass += deepnovo_config.mass_ID[id]
+                ion_location = get_ion_index(feature.mass, suffix_mass, 1)
+                backward_ion_location_index_list.append(ion_location)
+
+            forward_id_target_arr.append(forward_id_target)
+            backward_id_target_arr.append(backward_id_target)
+            forward_ion_location_index_arr.append(forward_ion_location_index_list)
+            backward_ion_location_index_arr.append(backward_ion_location_index_list)  # nested_list
+
+        # assemble data in the way in collate function.
+        ion_index_shape = forward_ion_location_index_list[0].shape
+        assert ion_index_shape == (deepnovo_config.vocab_size, deepnovo_config.num_ion)
+        batch_max_seq_len = max([len(x) for x in forward_id_target_arr])
+        num_candidates = len(forward_id_target_arr)
+        if batch_max_seq_len > 50:
+            logger.warning(f"feature {feature} has sequence candidate longer than 50")
+
+        # batch forward data
+        batch_forward_ion_index = []
+        batch_forward_id_target = []
+        for ii, forward_id_target in enumerate(forward_id_target_arr):
+            ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
+                                 np.float32)
+            forward_ion_index = np.stack(forward_ion_location_index_arr[ii])
+            ion_index[:forward_ion_index.shape[0], :, :] = forward_ion_index
+            batch_forward_ion_index.append(ion_index)
+
+            f_target = np.zeros((batch_max_seq_len,), np.int64)
+            forward_target = np.array(forward_id_target, np.int64)
+            f_target[:forward_target.shape[0]] = forward_target
+            batch_forward_id_target.append(f_target)
+
+        # batch backward data
+        batch_backward_ion_index = []
+        batch_backward_id_target = []
+        for ii, backward_id_target in enumerate(backward_id_target_arr):
+            ion_index = np.zeros((batch_max_seq_len, ion_index_shape[0], ion_index_shape[1]),
+                                 np.float32)
+            backward_ion_index = np.stack(backward_ion_location_index_arr[ii])
+            ion_index[:backward_ion_index.shape[0], :, :] = backward_ion_index
+            batch_backward_ion_index.append(ion_index)
+
+            b_target = np.zeros((batch_max_seq_len,), np.int64)
+            backward_target = np.array(backward_id_target, np.int64)
+            b_target[:backward_target.shape[0]] = backward_target
+            batch_backward_id_target.append(b_target)
+
+        batch_forward_id_target = np.stack(batch_forward_id_target)
+        batch_forward_ion_index = np.stack(batch_forward_ion_index)
+        batch_backward_id_target = np.stack(batch_backward_id_target)
+        batch_backward_ion_index = np.stack(batch_backward_ion_index)
+
+
+        ppm_arr = np.array(ppm_arr, dtype=np.float32)
+        num_var_mod_arr = np.array(num_var_mod_arr, dtype=np.float32)
+
+        duration = time.time() - start_time
+        logger.debug(f"a feature takes {duration} seconds to process.")
+        return DBSearchData(peak_location, peak_intensity, batch_forward_id_target, batch_backward_id_target,
+            batch_forward_ion_index, batch_backward_ion_index, ppm_arr,
+            num_var_mod_arr, charge_arr, precursor_mass, candidate_list, feature)

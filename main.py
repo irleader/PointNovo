@@ -3,12 +3,16 @@ import logging
 import logging.config
 import deepnovo_config
 from train_func import train, build_model, validation, perplexity
-from data_reader import DeepNovoDenovoDataset, collate_func, DeepNovoTrainDataset
+from data_reader import DeepNovoDenovoDataset, collate_func, DeepNovoTrainDataset, DBSearchDataset
+from db_searcher import DataBaseSearcher
+from psm_ranker import PSMRank
 from model import InferenceModelWrapper
 from denovo import IonCNNDenovo
-from writer import DenovoWriter
+import time
+from writer import DenovoWriter, PercolatorWriter
 import deepnovo_worker_test
 from deepnovo_dia_script_select import find_score_cutoff
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +54,35 @@ def main():
         accuracy_cutoff = 0.95
         accuracy_file = deepnovo_config.accuracy_file
         score_cutoff = find_score_cutoff(accuracy_file, accuracy_cutoff)
+
+    elif deepnovo_config.FLAGS.search_db:
+        logger.info("data base search mode")
+        start_time = time.time()
+        db_searcher = DataBaseSearcher(deepnovo_config.db_fasta_file)
+        dataset = DBSearchDataset(deepnovo_config.search_db_input_feature_file,
+                                  deepnovo_config.search_db_input_spectrum_file,
+                                  db_searcher)
+        num_spectra = len(dataset)
+
+        def simple_collate_func(train_data_list):
+            return train_data_list
+
+        data_reader = torch.utils.data.DataLoader(dataset=dataset,
+                                                  batch_size=1,
+                                                  shuffle=False,
+                                                  num_workers=6,
+                                                  collate_fn=simple_collate_func)
+
+        forward_deepnovo, backward_deepnovo, init_net = build_model(training=False)
+        forward_deepnovo.eval()
+        backward_deepnovo.eval()
+
+        writer = PercolatorWriter(deepnovo_config.db_output_file)
+        psm_ranker = PSMRank(data_reader, forward_deepnovo, backward_deepnovo, writer, num_spectra)
+        psm_ranker.search()
+
+        writer.close()
+
     else:
         raise RuntimeError("unspecified mode")
 
