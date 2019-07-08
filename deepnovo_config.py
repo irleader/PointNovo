@@ -163,7 +163,7 @@ semi_cleavage = False
 normalizing_std_n = 150
 normalizing_mean_n = 10
 
-inference_value_max_batch_size = 50
+inference_value_max_batch_size = 20
 num_psm_per_scan_for_percolator = 10
 db_fasta_file = "fasta_files/peaks_small_db_with_decoy.fasta"
 
@@ -280,7 +280,7 @@ mass_AA_min = mass_AA["G"]  # 57.02146
 WINDOW_SIZE = 10  # 10 bins
 print("WINDOW_SIZE ", WINDOW_SIZE)
 
-MZ_MAX = 10000.0 if FLAGS.search_db else 3000.0
+MZ_MAX = 5000.0 if FLAGS.search_db else 3000.0
 
 MAX_NUM_PEAK = 800
 

@@ -184,6 +184,9 @@ class PSMRank(object):
                 valid_indices = np.array(from_fasta_indices)
                 psm_scores = log_length_normalized_score[valid_indices]
                 nn = deepnovo_config.num_psm_per_scan_for_percolator
+                if len(psm_scores) < nn:
+                    logger.warning(f"do not have {nn} psm for percolator")
+                    nn = len(psm_scores)
                 top_n_psm_indices = np.argpartition(psm_scores, -nn)[-nn:]
 
                 for i, index in enumerate(top_n_psm_indices):

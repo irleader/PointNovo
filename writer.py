@@ -128,7 +128,11 @@ class PercolatorWriter(object):
 
     def write(self, psm: PSM):
         feature_id = psm.feature_id + '_' + str(psm.num_id)
-        label = str(psm.is_decoy is False)
+        if psm.is_decoy:
+            label = '-1'
+        else:
+            label= '1'
+        # label = str(psm.is_decoy is False)
         scan_nr = psm.scan
         exp_mass = "{:.4f}".format(psm.exp_mass)
         calc_mass = "{:.4f}".format(psm.calc_mass)
