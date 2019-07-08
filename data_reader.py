@@ -438,6 +438,9 @@ class DBSearchDataset(BaseDataset):
         line = self.input_spectrum_handle.readline()
         assert "RTINSECONDS=" in line, "Error: wrong input RTINSECONDS="
         mz_list, intensity_list = self._parse_spectrum_ion()
+        ## empty spectrum
+        if not mz_list:
+            return None
         peak_location, peak_intensity, _ = process_peaks(mz_list, intensity_list, feature.mass)
         precursor_mass = feature.mass
 

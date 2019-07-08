@@ -79,56 +79,66 @@ class PSMRank(object):
                 # when candidates too much, split into multiple batches or will have cudnn error
                 sum_log_prob = []
                 aa_length = []
-                for i in range(value_net_infer_data.seq.shape[0] // deepnovo_config.inference_value_max_batch_size):
+                for i in range(forward_id_target.size(0) // deepnovo_config.inference_value_max_batch_size):
                     index_range = range(i * deepnovo_config.inference_value_max_batch_size,
                                         (i + 1) * deepnovo_config.inference_value_max_batch_size)
-                    temp_forward = self.forward_model(peaks_location[index_range],
-                                                      peaks_intensity[index_range],
-                                                      forward_ion_location_index[index_range])  # (num_candidate, T, 26)
-                    forward_masking_matrix = ~(forward_id_target == 0)
+                    temp_forward_id_target = forward_id_target[index_range]
+                    temp_forward = self.forward_model(forward_ion_location_index[index_range],
+                                                      peaks_location[index_range],
+                                                      peaks_intensity[index_range]
+                                                      )  # (num_candidate, T, 26)
+                    forward_masking_matrix = ~(temp_forward_id_target == 0)
                     forward_masking_matrix = forward_masking_matrix.float()  # (num_candidate, T)
                     length = torch.sum(forward_masking_matrix, dim=1)
 
-                    forward_logprob = torch.gather(F.log_softmax(temp_forward),
-                                                  dim=2,
-                                                  index=forward_id_target.unsqueeze(-1)).squeeze(2)
+                    forward_logprob = torch.gather(F.log_softmax(temp_forward, dim=-1),
+                                                   dim=2,
+                                                   index=temp_forward_id_target.unsqueeze(-1)).squeeze(2)
                     forward_logprob = torch.sum(forward_logprob * forward_masking_matrix, dim=1)  # (num_candidate,)
 
-                    temp_backward = self.backward_model(peaks_location[index_range],
-                                                      peaks_intensity[index_range],
-                                                      backward_ion_location_index[index_range])  # (num_candidate, T, 26)
-                    backward_masking_matrix = ~(backward_id_target == 0)
+                    temp_backward_id_target = backward_id_target[index_range]
+                    temp_backward = self.backward_model(backward_ion_location_index[index_range],
+                                                        peaks_location[index_range],
+                                                        peaks_intensity[index_range])  # (num_candidate, T, 26)
+                    backward_masking_matrix = ~(temp_backward_id_target == 0)
                     backward_masking_matrix = backward_masking_matrix.float()
-                    backward_logprob = torch.gather(F.log_softmax(temp_backward),
-                                                   dim=2,
-                                                   index=backward_id_target.unsqueeze(-1)).squeeze(2)
+                    backward_logprob = torch.gather(F.log_softmax(temp_backward, dim=-1),
+                                                    dim=2,
+                                                    index=temp_backward_id_target.unsqueeze(-1)).squeeze(2)
                     backward_logprob = torch.sum(backward_logprob * backward_masking_matrix, dim=1)  # (num_candidate,)
 
                     sum_log_prob.append(forward_logprob + backward_logprob)
                     aa_length.append(length)
 
-                if value_net_infer_data.seq.shape[0] - (i + 1) * deepnovo_config.inference_value_max_batch_size > 0:
-                    temp_forward = self.forward_model(peaks_location[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                                                      peaks_intensity[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                                                      forward_ion_location_index[(i + 1) * deepnovo_config.inference_value_max_batch_size:])  # (num_candidate, T, 26)
-                    forward_masking_matrix = ~(forward_id_target == 0)
+                if forward_id_target.size(0) - (i + 1) * deepnovo_config.inference_value_max_batch_size > 0:
+                    temp_forward = self.forward_model(
+                        forward_ion_location_index[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
+                        peaks_location[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
+                        peaks_intensity[(i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                        )  # (num_candidate, T, 26)
+                    temp_forward_id_target = forward_id_target[(i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                    forward_masking_matrix = ~(temp_forward_id_target == 0)
                     forward_masking_matrix = forward_masking_matrix.float()  # (num_candidate, T)
                     length = torch.sum(forward_masking_matrix, dim=1)
 
-                    forward_logprob = torch.gather(F.log_softmax(temp_forward),
+                    forward_logprob = torch.gather(F.log_softmax(temp_forward, dim=-1),
                                                    dim=2,
-                                                   index=forward_id_target.unsqueeze(-1)).squeeze(2)
+                                                   index=temp_forward_id_target.unsqueeze(-1)).squeeze(2)
                     forward_logprob = torch.sum(forward_logprob * forward_masking_matrix, dim=1)  # (num_candidate,)
 
-                    temp_backward = self.backward_model(peaks_location[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                                                        peaks_intensity[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                                                        backward_ion_location_index[
-                                                            (i + 1) * deepnovo_config.inference_value_max_batch_size:])  # (num_candidate, T, 26)
-                    backward_masking_matrix = ~(backward_id_target == 0)
+                    temp_backward = self.backward_model(
+                        backward_ion_location_index[
+                            (i + 1) * deepnovo_config.inference_value_max_batch_size:],
+                        peaks_location[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
+                        peaks_intensity[(i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                        )  # (num_candidate, T, 26)
+                    temp_backward_id_target = backward_id_target[
+                                              (i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                    backward_masking_matrix = ~(temp_backward_id_target == 0)
                     backward_masking_matrix = backward_masking_matrix.float()
-                    backward_logprob = torch.gather(F.log_softmax(temp_backward),
+                    backward_logprob = torch.gather(F.log_softmax(temp_backward, dim=-1),
                                                     dim=2,
-                                                    index=backward_id_target.unsqueeze(-1)).squeeze(2)
+                                                    index=temp_backward_id_target.unsqueeze(-1)).squeeze(2)
                     backward_logprob = torch.sum(backward_logprob * backward_masking_matrix, dim=1)  # (num_candidate,)
 
                     sum_log_prob.append(forward_logprob + backward_logprob)
@@ -161,7 +171,8 @@ class PSMRank(object):
                     return mu, sigma
 
                 length_normalize_mu, length_normalize_sigma = get_normalization_stats(length_normalized_score)
-                log_length_normalize_mu, log_length_normalize_sigma = get_normalization_stats(log_length_normalized_score)
+                log_length_normalize_mu, log_length_normalize_sigma = get_normalization_stats(
+                    log_length_normalized_score)
 
                 from_fasta_indices = []
                 from_fasta_pc_list = []
@@ -193,8 +204,10 @@ class PSMRank(object):
                                       is_decoy=self.accession_id_is_decoy(candidate.accession_id),
                                       length_score=length_score,
                                       log_length_score=log_length_score,
-                                      length_normalized_score=float((length_score - length_normalize_mu) / length_normalize_sigma),
-                                      log_length_normalized_score=float((log_length_score - log_length_normalize_mu) / log_length_normalize_sigma),
+                                      length_normalized_score=float(
+                                          (length_score - length_normalize_mu) / length_normalize_sigma),
+                                      log_length_normalized_score=float(
+                                          (log_length_score - log_length_normalize_mu) / log_length_normalize_sigma),
                                       ppm=candidate.ppm,
                                       peptide_length=len(candidate.seq),
                                       num_var_mod=candidate.num_var_mod

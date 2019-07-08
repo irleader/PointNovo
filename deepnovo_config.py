@@ -154,7 +154,8 @@ print("Training vocab_size ", vocab_size)
 
 # database search parameter
 fix_mod_dict = {"C": "C(Carbamidomethylation)"}
-var_mod_dict = {"N": "N(Deamidation)", 'Q': 'Q(Deamidation)', 'M': 'M(Oxidation)'}
+# var_mod_dict = {"N": "N(Deamidation)", 'Q': 'Q(Deamidation)', 'M': 'M(Oxidation)'}
+var_mod_dict = {'M': 'M(Oxidation)'}
 max_num_mod = 3
 db_ppm_tolenrance = 20.
 semi_cleavage = False
@@ -279,7 +280,7 @@ mass_AA_min = mass_AA["G"]  # 57.02146
 WINDOW_SIZE = 10  # 10 bins
 print("WINDOW_SIZE ", WINDOW_SIZE)
 
-MZ_MAX = 3000.0
+MZ_MAX = 10000.0 if FLAGS.search_db else 3000.0
 
 MAX_NUM_PEAK = 800
 
@@ -296,7 +297,7 @@ PRECURSOR_MASS_PRECISION_TOLERANCE = 0.01
 AA_MATCH_PRECISION = 0.1
 
 # skip (x > MZ_MAX,MAX_LEN)
-MAX_LEN = 50 if FLAGS.search_denovo else 30
+MAX_LEN = 60 if FLAGS.search_denovo or FLAGS.search_db else 30
 print("MAX_LEN ", MAX_LEN)
 
 # ==============================================================================

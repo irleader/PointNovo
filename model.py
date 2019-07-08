@@ -73,7 +73,7 @@ class DeepNovoPointNet(nn.Module):
         """
 
         N = peaks_location.size(1)
-        assert N == peaks_intensity.size(1)
+        assert N == peaks_intensity.size(1), f"location dim 1 of size: {N} but intensity dim 1 of size {peaks_intensity.size(1)}"
         batch_size, T, vocab_size, num_ion = location_index.size()
 
         peaks_location = peaks_location.view(batch_size, 1, N, 1)
