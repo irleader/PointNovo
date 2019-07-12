@@ -381,8 +381,12 @@ denovo_input_spectrum_file = "ABRF_DDA/spectrums.mgf"
 denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
 
 # db search files
-search_db_input_spectrum_file = "PXD011170/spectrum.mgf"
-search_db_input_feature_file = "PXD011170/features.csv"
+# search_db_input_spectrum_file = "PXD011170/spectrum.mgf"
+# search_db_input_feature_file = "PXD011170/features.csv"
+search_db_input_spectrum_file = "PXD011170/ARZ5/spectrum.mgf"
+search_db_input_feature_file = "PXD011170/ARZ5/features.csv"
+# search_db_input_spectrum_file = "PXD007580/spectrum.mgf"
+# search_db_input_feature_file = "PXD007580/features.csv"
 db_output_file = search_db_input_feature_file + '.pin'
 
 # denovo_input_spectrum_file = "high.clambacteria.PXD004536/spectrum.mgf"  # endoloripes

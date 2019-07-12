@@ -1,5 +1,6 @@
 import os
 import re
+import numpy as np
 
 col_feature_id = 0
 col_scan_list = 5
@@ -117,7 +118,7 @@ def partition_feature_file_nodup(input_feature_file, prob):
                         counter += 1
                         # check if the peptide already exists in any of the three lists
                         # if yes, this new feature will be assigned to that list
-                        peptide = re.split(',|\r|\n', line)[deepnovo_config.col_raw_sequence]
+                        peptide = re.split(',|\r|\n', line)[4]
                         if (peptide in peptide_train_list):
                             output_handle = output_handle_train
                             counter_train += 1

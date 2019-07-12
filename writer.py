@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from data_reader import DDAFeature
 import deepnovo_config
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class PercolatorWriter(object):
                        "LengthNormalizedScore",  # 6
                        "LogLengthScore",  # 7
                        "LogLengthNormalizedScore",  # 8
-                       "Ppm",  # 9
+                       "PpmAbsDiff",  # 9
                        "PepLen",  # 10
                        "Charge1",  # 11
                        "Charge2",  # 12
@@ -122,6 +123,7 @@ class PercolatorWriter(object):
                        ]
         header_row = "\t".join(header_list)
         print(header_row, file=self.output_handle, end='\n')
+        self.scan_nr_counter = 1
 
     def close(self):
         self.output_handle.close()
@@ -133,14 +135,15 @@ class PercolatorWriter(object):
         else:
             label= '1'
         # label = str(psm.is_decoy is False)
-        scan_nr = psm.scan
+        scan_nr = f"{self.scan_nr_counter}"
+        self.scan_nr_counter += 1
         exp_mass = "{:.4f}".format(psm.exp_mass)
         calc_mass = "{:.4f}".format(psm.calc_mass)
         length_score = "{:.4f}".format(psm.length_score)
         length_normalized_score = "{:.4f}".format(psm.length_normalized_score)
         log_length_score = "{:.4f}".format(psm.log_length_score)
         log_length_normalized_score = "{:.4f}".format(psm.log_length_normalized_score)
-        ppm = "{:.4f}".format(psm.ppm)
+        ppm = "{:.4f}".format(np.abs(psm.ppm))
         pep_len = str(psm.peptide_length)
 
         print_list = [feature_id,
