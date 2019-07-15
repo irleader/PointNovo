@@ -445,6 +445,8 @@ class DBSearchDataset(BaseDataset):
         precursor_mass = feature.mass
 
         candidate_list = self.db_searcher.search_peptide_by_mass(precursor_mass, pad_with_random_permutation=True)
+        #TODO(Rui): filter candidate list by number of fragment ions matched.
+
         if len(candidate_list) == 0:
             #  no candidates
             return None
@@ -537,3 +539,12 @@ class DBSearchDataset(BaseDataset):
         return DBSearchData(peak_location, peak_intensity, batch_forward_id_target, batch_backward_id_target,
             batch_forward_ion_index, batch_backward_ion_index, ppm_arr,
             num_var_mod_arr, charge_arr, precursor_mass, candidate_list, feature)
+
+    @staticmethod
+    def get_fragment_ion_location(precursor_neutral_mass, prefix_mass):
+        """
+
+        :param precursor_neutral_mass:
+        :param prefix_mass:
+        :return:
+        """

@@ -166,6 +166,7 @@ normalizing_mean_n = 10
 inference_value_max_batch_size = 20
 num_psm_per_scan_for_percolator = 10
 db_fasta_file = "fasta_files/peaks_small_db_with_decoy.fasta"
+num_db_searcher_worker = 8
 
 
 def _fix_transform(aa: str):
@@ -383,8 +384,10 @@ denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
 # db search files
 # search_db_input_spectrum_file = "PXD011170/spectrum.mgf"
 # search_db_input_feature_file = "PXD011170/features.csv"
-search_db_input_spectrum_file = "PXD011170/ARZ5/spectrum.mgf"
-search_db_input_feature_file = "PXD011170/ARZ5/features.csv"
+# search_db_input_spectrum_file = "PXD011170/ARZ5/spectrum.mgf"
+# search_db_input_feature_file = "PXD011170/ARZ5/features.csv"
+search_db_input_spectrum_file = "PXD007580/sample_pp01_01/spectrum.mgf"
+search_db_input_feature_file = "PXD007580/sample_pp01_01/features.csv"
 # search_db_input_spectrum_file = "PXD007580/spectrum.mgf"
 # search_db_input_feature_file = "PXD007580/features.csv"
 db_output_file = search_db_input_feature_file + '.pin'

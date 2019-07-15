@@ -1,4 +1,5 @@
 import torch
+import subprocess
 import logging
 import logging.config
 import deepnovo_config
@@ -70,7 +71,7 @@ def main():
         data_reader = torch.utils.data.DataLoader(dataset=dataset,
                                                   batch_size=1,
                                                   shuffle=False,
-                                                  num_workers=6,
+                                                  num_workers=deepnovo_config.num_db_searcher_worker,
                                                   collate_fn=simple_collate_func)
 
         forward_deepnovo, backward_deepnovo, init_net = build_model(training=False)
@@ -80,8 +81,11 @@ def main():
         writer = PercolatorWriter(deepnovo_config.db_output_file)
         psm_ranker = PSMRank(data_reader, forward_deepnovo, backward_deepnovo, writer, num_spectra)
         psm_ranker.search()
-
         writer.close()
+        # call percolator
+        with open(f"{deepnovo_config.db_output_file}", "w") as fw:
+            subprocess.run(["percolator", "-X", "/tmp/pout.xml", f"{deepnovo_config.db_output_file}"],
+                           stdout=fw)
 
     else:
         raise RuntimeError("unspecified mode")
