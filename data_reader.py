@@ -401,6 +401,7 @@ class DBSearchDataset(BaseDataset):
     def __init__(self, feature_filename, spectrum_filename, db_searcher: DataBaseSearcher):
         super(DBSearchDataset, self).__init__(feature_filename, spectrum_filename)
         self.db_searcher = db_searcher
+        self.quick_scorer = self.peaks_quick_scorer
 
     @staticmethod
     def peptide_to_aa_id_seq(peptide: list, direction=0):
@@ -451,9 +452,9 @@ class DBSearchDataset(BaseDataset):
             return None
 
         if len(candidate_list) > deepnovo_config.normalizing_std_n:
-            num_matched_ions = [self.get_num_matched_fragment_ions(feature.mass, peak_location, pc.seq) for pc in candidate_list]
-            num_matched_ions = np.array(num_matched_ions)
-            top_k_ind = np.argpartition(num_matched_ions, -deepnovo_config.normalizing_std_n)[-deepnovo_config.normalizing_std_n:]
+            quick_scores = [self.quick_scorer(feature.mass, peak_location, peak_intensity, pc.seq) for pc in candidate_list]
+            quick_scores = np.array(quick_scores)
+            top_k_ind = np.argpartition(quick_scores, -deepnovo_config.normalizing_std_n)[-deepnovo_config.normalizing_std_n:]
 
             top_candidate_list = []
             for ind in top_k_ind:
@@ -568,7 +569,7 @@ class DBSearchDataset(BaseDataset):
         return theoretical_location
 
     @classmethod
-    def get_num_matched_fragment_ions(cls, precursor_mass, peaks_location, seq):
+    def get_num_matched_fragment_ions(cls, precursor_mass, peaks_location, peaks_intensity, seq):
         """
 
         :param peaks_location: the spectrum m/z location array
@@ -590,3 +591,22 @@ class DBSearchDataset(BaseDataset):
             mz_diff = np.any(mz_diff < deepnovo_config.fragment_ion_mz_diff_threshold)
             num_matched_ions += mz_diff.astype(np.int32)
         return num_matched_ions
+
+    @classmethod
+    def peaks_quick_scorer(cls, precursor_mass, peaks_location, peaks_intensity, seq):
+        peaks_location = np.expand_dims(peaks_location, axis=1)
+        peaks_intensity = np.log(1 + 10 * peaks_intensity)  # use log intensity
+        peptide_id_list = [deepnovo_config.vocab[x] for x in seq]
+        forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
+        prefix_mass = 0.
+        score = 0
+        for i, id in enumerate(forward_id_input):
+            prefix_mass += deepnovo_config.mass_ID[id]
+            ion_location = cls.get_fragment_ion_location(precursor_mass, prefix_mass)  # [3]
+            ion_location = np.expand_dims(ion_location, axis=0)
+
+            # diff matrix
+            mz_diff = np.abs(peaks_location - ion_location)  ## [N, 3]
+            score_vec = np.max(np.exp(-np.square(mz_diff*100)), axis=1)  # each observed peak can only be explained by one ion type
+            score += np.sum(score_vec * peaks_intensity)
+        return score
