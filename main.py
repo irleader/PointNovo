@@ -83,7 +83,7 @@ def main():
         psm_ranker.search()
         writer.close()
         # call percolator
-        with open(f"{deepnovo_config.db_output_file}", "w") as fw:
+        with open(f"{deepnovo_config.db_output_file}" + '.psms', "w") as fw:
             subprocess.run(["percolator", "-X", "/tmp/pout.xml", f"{deepnovo_config.db_output_file}"],
                            stdout=fw)
 

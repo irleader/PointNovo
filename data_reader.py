@@ -445,11 +445,22 @@ class DBSearchDataset(BaseDataset):
         precursor_mass = feature.mass
 
         candidate_list = self.db_searcher.search_peptide_by_mass(precursor_mass, pad_with_random_permutation=True)
-        #TODO(Rui): filter candidate list by number of fragment ions matched.
 
         if len(candidate_list) == 0:
             #  no candidates
             return None
+
+        if len(candidate_list) > deepnovo_config.normalizing_std_n:
+            num_matched_ions = [self.get_num_matched_fragment_ions(feature.mass, peak_location, pc.seq) for pc in candidate_list]
+            num_matched_ions = np.array(num_matched_ions)
+            top_k_ind = np.argpartition(num_matched_ions, -deepnovo_config.normalizing_std_n)[-deepnovo_config.normalizing_std_n:]
+
+            top_candidate_list = []
+            for ind in top_k_ind:
+                top_candidate_list.append(candidate_list[ind])
+            candidate_list = top_candidate_list
+
+        assert len(candidate_list) == deepnovo_config.normalizing_std_n
 
         forward_id_target_arr = []
         backward_id_target_arr = []
@@ -544,7 +555,38 @@ class DBSearchDataset(BaseDataset):
     def get_fragment_ion_location(precursor_neutral_mass, prefix_mass):
         """
 
-        :param precursor_neutral_mass:
-        :param prefix_mass:
-        :return:
+        :param precursor_neutral_mass: float number
+        :param prefix_mass: float number
+        :return: theoretical mass location, an array of 3 elems.
         """
+        b_mass = prefix_mass
+        y_mass = precursor_neutral_mass - b_mass
+        a_mass = b_mass - deepnovo_config.mass_CO
+
+        ion_list = [b_mass, y_mass, a_mass]
+        theoretical_location = np.asarray(ion_list, dtype=np.float32)
+        return theoretical_location
+
+    @classmethod
+    def get_num_matched_fragment_ions(cls, precursor_mass, peaks_location, seq):
+        """
+
+        :param peaks_location: the spectrum m/z location array
+        :param seq: attribute of PeptideCandidate
+        :return: num_matched_ions
+        """
+        peaks_location = np.expand_dims(peaks_location, axis=1)
+        peptide_id_list = [deepnovo_config.vocab[x] for x in seq]
+        forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
+        prefix_mass = 0.
+        num_matched_ions = 0
+        for i, id in enumerate(forward_id_input):
+            prefix_mass += deepnovo_config.mass_ID[id]
+            ion_location = cls.get_fragment_ion_location(precursor_mass, prefix_mass)  # [3]
+            ion_location = np.expand_dims(ion_location, axis=0)
+
+            # diff matrix
+            mz_diff = np.abs(peaks_location - ion_location)
+            mz_diff = np.any(mz_diff < deepnovo_config.fragment_ion_mz_diff_threshold)
+            num_matched_ions += mz_diff.astype(np.int32)
+        return num_matched_ions
