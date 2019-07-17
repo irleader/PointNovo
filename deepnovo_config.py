@@ -361,18 +361,8 @@ print("max_gradient_norm ", max_gradient_norm)
 data_format = "mgf"
 cleavage_rule = "trypsin"
 num_missed_cleavage = 2
-num_mod = 3
-precursor_mass_tolerance = 0.01  # Da
-precursor_mass_ppm = 15.0 / 1000000  # ppm (20 better) # instead of absolute 0.01 Da
 knapsack_file = "knapsack.npy"
-topk_output = 1
-# training/testing/decoding files
-# DDA
-# ~ input_file_train = "data.training/yeast.high.exclude_weisser_2017/train.exclude_1.mgf"
-# ~ input_file_valid = "data.training/yeast.high.exclude_weisser_2017/valid.frac_1.mgf"
-# ~ input_file_test = "data.training/yeast.high.exclude_weisser_2017/valid.frac_1.mgf"
-# ~ decode_test_file = "data.training/yeast.high.exclude_weisser_2017/valid.frac_1.mgf"
-# DIA
+
 input_spectrum_file_train = "ABRF_DDA/spectrums.mgf"
 input_feature_file_train = "ABRF_DDA/features.csv.identified.train.nodup"
 input_spectrum_file_valid = "ABRF_DDA/spectrums.mgf"
