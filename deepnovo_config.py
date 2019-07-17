@@ -168,6 +168,7 @@ num_psm_per_scan_for_percolator = 10
 db_fasta_file = "fasta_files/peaks_small_db_with_decoy.fasta"
 num_db_searcher_worker = 8
 fragment_ion_mz_diff_threshold = 0.02
+quick_scorer = "num_matched_ions"
 
 
 def _fix_transform(aa: str):

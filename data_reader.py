@@ -401,7 +401,12 @@ class DBSearchDataset(BaseDataset):
     def __init__(self, feature_filename, spectrum_filename, db_searcher: DataBaseSearcher):
         super(DBSearchDataset, self).__init__(feature_filename, spectrum_filename)
         self.db_searcher = db_searcher
-        self.quick_scorer = self.peaks_quick_scorer
+        if deepnovo_config.quick_scorer == "num_matched_ions":
+            self.quick_scorer = self.get_num_matched_fragment_ions
+        elif deepnovo_config.quick_scorer == "peaks_scorer":
+            self.quick_scorer = self.peaks_quick_scorer
+        else:
+            raise ValueError(f"unknown quick_scorer attribute: {deepnovo_config.quick_scorer}")
 
     @staticmethod
     def peptide_to_aa_id_seq(peptide: list, direction=0):
