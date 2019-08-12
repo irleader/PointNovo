@@ -285,7 +285,7 @@ print("WINDOW_SIZE ", WINDOW_SIZE)
 
 MZ_MAX = 5000.0 if FLAGS.search_db else 3000.0
 
-MAX_NUM_PEAK = 800
+MAX_NUM_PEAK = 1000
 
 KNAPSACK_AA_RESOLUTION = 10000  # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION))  # 57.02146
@@ -376,12 +376,14 @@ denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
 # db search files
 # search_db_input_spectrum_file = "PXD011170/spectrum.mgf"
 # search_db_input_feature_file = "PXD011170/features.csv"
-search_db_input_spectrum_file = "PXD011170/ARZ5/spectrum.mgf"
-search_db_input_feature_file = "PXD011170/ARZ5/features.csv"
+# search_db_input_spectrum_file = "PXD011170/ARZ5/spectrum.mgf"
+# search_db_input_feature_file = "PXD011170/ARZ5/features.csv"
 # search_db_input_spectrum_file = "PXD007580/sample_pp01_01/spectrum.mgf"
 # search_db_input_feature_file = "PXD007580/sample_pp01_01/features.csv"
 # search_db_input_spectrum_file = "PXD007580/spectrum.mgf"
 # search_db_input_feature_file = "PXD007580/features.csv"
+search_db_input_spectrum_file = "Lumos_data/PXD008999/export_0.mgf"
+search_db_input_feature_file = "Lumos_data/PXD008999/export_0.csv"
 db_output_file = search_db_input_feature_file + '.pin'
 
 # denovo_input_spectrum_file = "high.clambacteria.PXD004536/spectrum.mgf"  # endoloripes
