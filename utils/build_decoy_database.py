@@ -8,8 +8,8 @@ def build_decoy(input_database_file_name, output_database_file_name):
         record_iterator = SeqIO.parse(input_handle, "fasta")
         for record in record_iterator:
             reverse_seq = record.seq[::-1]
-            name = "DECOY|" + record.name
-            id = "DECOY|" + record.id
+            name = record.name + "_DECOY"
+            id = record.id + "_DECOY"
             decoy_record = SeqRecord(reverse_seq,
                                      id=id,
                                      name=name,

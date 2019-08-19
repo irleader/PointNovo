@@ -3,6 +3,7 @@ import torch
 import time
 import logging
 import deepnovo_config
+from typing import List
 import numpy as np
 from dataclasses import dataclass
 from model import Direction, InferenceModelWrapper, device
@@ -146,14 +147,19 @@ class IonCNNDenovo(object):
 
             spectrum_state = (batch_peak_location[feature_index], batch_peak_intensity[feature_index])
 
+            if deepnovo_config.use_lstm:
+                lstm_state = (initial_hidden_state_tuple[0][:, feature_index, :],
+                              initial_hidden_state_tuple[1][:, feature_index, :]
+                              )
+            else:
+                lstm_state = None
+
             path = SearchPath(
                 aa_id_list=[first_label],
                 aa_seq_mass=get_start_mass(start_point_batch[feature_index]),
                 score_list=[0.0],
                 score_sum=0.0,
-                lstm_state=(initial_hidden_state_tuple[0][:, feature_index, :],
-                            initial_hidden_state_tuple[1][:, feature_index, :]
-                            ),
+                lstm_state=lstm_state,
                 direction=direction,
             )
             search_entry = SearchEntry(
@@ -394,7 +400,7 @@ class IonCNNDenovo(object):
         return predicted_batch
 
     def search_denovo(self, model_wrapper: InferenceModelWrapper,
-                      beam_search_reader: DeepNovoDenovoDataset, denovo_writer: DenovoWriter):
+                      beam_search_reader: DeepNovoDenovoDataset, denovo_writer: DenovoWriter) -> List[DenovoResult]:
         logger.info("start beam search denovo")
         predicted_denovo_list = []
 
@@ -409,3 +415,4 @@ class IonCNNDenovo(object):
                 denovo_writer.write(denovo_result.dda_feature, denovo_result.best_beam_search_sequence)
 
         return predicted_denovo_list
+
