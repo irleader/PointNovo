@@ -206,7 +206,11 @@ def train():
                                                     collate_fn=collate_func)
     forward_deepnovo, backward_deepnovo, init_net = build_model()
     # sparse_params = forward_deepnovo.spectrum_embedding_matrix.parameters()
-    dense_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
+    if deepnovo_config.use_lstm:
+        dense_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters()) + \
+                       list(init_net.parameters())
+    else:
+        dense_params = list(forward_deepnovo.parameters()) + list(backward_deepnovo.parameters())
 
     dense_optimizer = optim.Adam(dense_params,
                                  lr=deepnovo_config.init_lr,
