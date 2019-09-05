@@ -34,6 +34,15 @@ def parse_raw_sequence(raw_sequence: str):
             elif peptide[-1] == 'Q' and raw_sequence[index:index + 6] == "(+.98)":
                 peptide[-1] = 'Q(Deamidation)'
                 index += 6
+            elif peptide[-1] == 'S' and raw_sequence[index:index + 8] == "(+79.97)":
+                peptide[-1] = "S(Phosphorylation)"
+                index += 8
+            elif peptide[-1] == 'T' and raw_sequence[index:index + 8] == "(+79.97)":
+                peptide[-1] = "T(Phosphorylation)"
+                index += 8
+            elif peptide[-1] == 'Y' and raw_sequence[index:index + 8] == "(+79.97)":
+                peptide[-1] = "Y(Phosphorylation)"
+                index += 8
             else:  # unknown modification
                 logger.warning(f"unknown modification in seq {raw_sequence}")
                 return False, peptide
