@@ -129,9 +129,12 @@ vocab_reverse = ['A',
                  'F',
                  'P',
                  'S',
+                 'S(Phosphorylation)',
                  'T',
+                 'T(Phosphorylation)',
                  'W',
                  'Y',
+                 "Y(Phosphorylation)",
                  'V',
                 ]
 
@@ -156,6 +159,7 @@ mass_NH3 = 17.0265
 mass_N_terminus = 1.0078
 mass_C_terminus = 17.0027
 mass_CO = 27.9949
+mass_Phosphorylation = 79.96633
 
 mass_AA = {'_PAD': 0.0,
            '_GO': mass_N_terminus-mass_H,
@@ -181,9 +185,12 @@ mass_AA = {'_PAD': 0.0,
            'F': 147.06841, # 13
            'P': 97.05276, # 14
            'S': 87.03203, # 15
+           'S(Phosphorylation)': 87.03203 + mass_Phosphorylation,
            'T': 101.04768, # 16
+           'T(Phosphorylation)': 101.04768 + mass_Phosphorylation,
            'W': 186.07931, # 17
            'Y': 163.06333, # 18
+           'Y(Phosphorylation)': 163.06333 + mass_Phosphorylation,
            'V': 99.06841, # 19
           }
 
@@ -302,15 +309,15 @@ topk_output = 1
 #~ input_file_test = "data.training/yeast.high.exclude_weisser_2017/valid.frac_1.mgf"
 #~ decode_test_file = "data.training/yeast.high.exclude_weisser_2017/valid.frac_1.mgf"
 # DIA
-input_spectrum_file_train = "ABRF_DDA/spectrums.mgf"
-input_feature_file_train = "ABRF_DDA/features.csv.identified.train.nodup"
-input_spectrum_file_valid = "ABRF_DDA/spectrums.mgf"
-input_feature_file_valid = "ABRF_DDA/features.csv.identified.valid.nodup"
+input_spectrum_file_train = "Lumos_data/PXD010559/spectrum.mgf"
+input_feature_file_train = "Lumos_data/PXD010559/features.csv.mass_corrected.identified.train.nodup"
+input_spectrum_file_valid = "Lumos_data/PXD010559/spectrums.mgf"
+input_feature_file_valid = "Lumos_data/PXD010559/features.csv.mass_corrected.identified.valid.nodup"
 input_spectrum_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.spectrum.mgf"
 input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.feature.csv"
 # denovo files
-denovo_input_spectrum_file = "ABRF_DDA/spectrums.mgf"
-denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
+denovo_input_spectrum_file = "Lumos_data/PXD010559/spectrum.mgf"
+denovo_input_feature_file = "Lumos_data/PXD010559/features.csv.mass_corrected.identified.test.nodup"
 denovo_output_file = denovo_input_feature_file + ".deepnovo_denovo"
 # db files
 #~ db_fasta_file = "data/uniprot_sprot.human.db_decoy.fasta"
