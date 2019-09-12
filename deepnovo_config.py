@@ -267,7 +267,7 @@ batch_size = 32
 num_workers = 6
 print("batch_size ", batch_size)
 
-num_epoch = 20
+num_epoch = 5
 
 init_lr = 1e-3
 
@@ -311,7 +311,7 @@ topk_output = 1
 # DIA
 input_spectrum_file_train = "Lumos_data/PXD010559/spectrum.mgf"
 input_feature_file_train = "Lumos_data/PXD010559/features.csv.mass_corrected.identified.train.nodup"
-input_spectrum_file_valid = "Lumos_data/PXD010559/spectrums.mgf"
+input_spectrum_file_valid = "Lumos_data/PXD010559/spectrum.mgf"
 input_feature_file_valid = "Lumos_data/PXD010559/features.csv.mass_corrected.identified.valid.nodup"
 input_spectrum_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.spectrum.mgf"
 input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jurkat_oxford.feature.csv"
