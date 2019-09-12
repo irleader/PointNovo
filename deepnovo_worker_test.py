@@ -15,6 +15,7 @@ import sys
 import numpy as np
 
 import deepnovo_config
+from data_reader import parse_raw_sequence
 
 class WorkerTest(object):
   """TODO(nh2tran): docstring.
@@ -365,7 +366,9 @@ class WorkerTest(object):
         predicted["feature_id"] = "F" + line_split[col_fraction_id] + ":" + line_split[col_scan_id]
         raw_sequence = line_split[col_sequence]
         assert raw_sequence, "Error: wrong format."
-        predicted["sequence"] = self._parse_sequence(raw_sequence)
+        okay, predicted["sequence"] = parse_raw_sequence(raw_sequence)
+        if not okay:
+          raise ValueError(f"unknown modification in {raw_sequence}")
         # skip peptides with precursor_mass > MZ_MAX
         if self._compute_peptide_mass(predicted["sequence"]) > self.MZ_MAX:
           continue
@@ -377,7 +380,6 @@ class WorkerTest(object):
         predicted_list.append(predicted)
 
     self.predicted_list = predicted_list
-
 
   def _get_target(self):
     """TODO(nh2tran): docstring."""
@@ -395,44 +397,11 @@ class WorkerTest(object):
         feature_id = line[0]
         raw_sequence = line[raw_sequence_index]
         assert raw_sequence, "Error: wrong target format."
-        peptide = self._parse_sequence(raw_sequence)
+        okay, peptide = parse_raw_sequence(raw_sequence)
+        if not okay:
+          raise ValueError(f"unknown modification in {raw_sequence}")
         target_dict[feature_id] = peptide
     self.target_dict = target_dict
-
-
-  def _parse_sequence(self, raw_sequence):
-    """TODO(nh2tran): docstring."""
-
-    #~ print("".join(["="] * 80)) # section-separating line
-    #~ print("WorkerTest._parse_sequence()")
-
-    raw_sequence_len = len(raw_sequence)
-    peptide = []
-    index = 0
-    while index < raw_sequence_len:
-      if raw_sequence[index] == "(":
-        if peptide[-1] == "C" and raw_sequence[index:index+8] == "(+57.02)":
-          peptide[-1] = "C(Carbamidomethylation)"
-          index += 8
-        elif peptide[-1] == 'M' and raw_sequence[index:index+8] == "(+15.99)":
-          peptide[-1] = 'M(Oxidation)'
-          index += 8
-        elif peptide[-1] == 'N' and raw_sequence[index:index+6] == "(+.98)":
-          peptide[-1] = 'N(Deamidation)'
-          index += 6
-        elif peptide[-1] == 'Q' and raw_sequence[index:index+6] == "(+.98)":
-          peptide[-1] = 'Q(Deamidation)'
-          index += 6
-        else: # unknown modification
-          print("ERROR: unknown modification!")
-          print("raw_sequence = ", raw_sequence)
-          sys.exit()
-      else:
-        peptide.append(raw_sequence[index])
-        index += 1
-
-    return peptide
-
 
   def _match_AA_novor(self, target, predicted):
     """TODO(nh2tran): docstring."""
