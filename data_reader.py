@@ -47,6 +47,10 @@ def parse_raw_sequence(raw_sequence: str):
         else:
             peptide.append(raw_sequence[index])
             index += 1
+    for aa in peptide:
+        if aa not in deepnovo_config.vocab:
+            logger.warning(f"unknown modification in seq {raw_sequence}")
+            return False, peptide
 
     return True, peptide
 
