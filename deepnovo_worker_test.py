@@ -399,7 +399,8 @@ class WorkerTest(object):
         assert raw_sequence, "Error: wrong target format."
         okay, peptide = parse_raw_sequence(raw_sequence)
         if not okay:
-          raise ValueError(f"unknown modification in {raw_sequence}")
+          # skip unknown mod
+          continue
         target_dict[feature_id] = peptide
     self.target_dict = target_dict
 
