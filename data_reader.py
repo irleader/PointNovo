@@ -105,7 +105,7 @@ class TrainData:
 class BaseDataset(Dataset):
     def __init__(self, feature_filename, spectrum_filename, transform=None):
         """
-        read all feature information and store in memory,
+        An abstract class, read all feature information and store in memory,
         :param feature_filename:
         :param spectrum_filename:
         """

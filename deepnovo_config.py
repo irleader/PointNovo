@@ -139,7 +139,7 @@ vocab_reverse = ['A',
                  # 'T(Phosphorylation)',
                  'W',
                  'Y',
-                 # 'Y(Phosphorylation)'
+                 # 'Y(Phosphorylation)',
                  'V',
                  ]
 
