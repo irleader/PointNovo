@@ -14,18 +14,17 @@ import numpy as np
 cimport numpy as np
 cimport cython
 
-import deepnovo_config
+import config
 
-mass_ID_np = deepnovo_config.mass_ID_np
-cdef int GO_ID = deepnovo_config.GO_ID
-cdef int EOS_ID = deepnovo_config.EOS_ID
-cdef float mass_H2O = deepnovo_config.mass_H2O
-cdef float mass_NH3 = deepnovo_config.mass_NH3
-cdef float mass_H = deepnovo_config.mass_H
-cdef float mass_CO = deepnovo_config.mass_CO
-cdef int WINDOW_SIZE = deepnovo_config.WINDOW_SIZE
-cdef int vocab_size = deepnovo_config.vocab_size
-cdef int num_ion = deepnovo_config.num_ion
+mass_ID_np = config.mass_ID_np
+cdef int GO_ID = config.GO_ID
+cdef int EOS_ID = config.EOS_ID
+cdef float mass_H2O = config.mass_H2O
+cdef float mass_NH3 = config.mass_NH3
+cdef float mass_H = config.mass_H
+cdef float mass_CO = config.mass_CO
+cdef int vocab_size = config.vocab_size
+cdef int num_ion = config.num_ion
 
 
 def get_sinusoid_encoding_table(n_position, embed_size, padding_idx=0):
@@ -37,7 +36,7 @@ def get_sinusoid_encoding_table(n_position, embed_size, padding_idx=0):
     """
 
     def cal_angle(position, hid_idx):
-        return position / np.power(deepnovo_config.sinusoid_base, 2 * (hid_idx // 2) / embed_size)
+        return position / np.power(config.sinusoid_base, 2 * (hid_idx // 2) / embed_size)
 
     def get_posi_angle_vec(position):
         return [cal_angle(position, hid_j) for hid_j in range(embed_size)]
@@ -50,8 +49,8 @@ def get_sinusoid_encoding_table(n_position, embed_size, padding_idx=0):
     sinusoid_matrix[padding_idx] = 0.
     return sinusoid_matrix
 
-sinusoid_matrix = get_sinusoid_encoding_table(deepnovo_config.n_position, deepnovo_config.embedding_size,
-                                              padding_idx=deepnovo_config.PAD_ID)
+sinusoid_matrix = get_sinusoid_encoding_table(config.n_position, config.embedding_size,
+                                              padding_idx=config.PAD_ID)
 
 @cython.boundscheck(False) # turn off bounds-checking
 @cython.wraparound(False) # turn off negative index wrapping
@@ -116,7 +115,7 @@ def get_ion_index(peptide_mass, prefix_mass, direction):
 
   in_bound_mask = np.logical_and(
       ion_mass > 0,
-      ion_mass <= deepnovo_config.MZ_MAX).astype(np.float32)
+      ion_mass <= config.MZ_MAX).astype(np.float32)
   ion_location = ion_mass * in_bound_mask  # 8 by 26, out of bound index would have value 0
   return ion_location.transpose()  # 26 by 8
 
@@ -149,48 +148,48 @@ def process_peaks(spectrum_mz_list, spectrum_intensity_list, peptide_mass):
   spectrum_intensity_max = np.max(spectrum_intensity_list)
 
   # charge 1 peptide location
-  spectrum_mz_list.append(peptide_mass + charge*deepnovo_config.mass_H)
+  spectrum_mz_list.append(peptide_mass + charge * config.mass_H)
   spectrum_intensity_list.append(spectrum_intensity_max)
 
   # N-terminal, b-ion, peptide_mass_C
   # append N-terminal
-  mass_N = deepnovo_config.mass_N_terminus - deepnovo_config.mass_H
-  spectrum_mz_list.append(mass_N + charge*deepnovo_config.mass_H)
+  mass_N = config.mass_N_terminus - config.mass_H
+  spectrum_mz_list.append(mass_N + charge * config.mass_H)
   spectrum_intensity_list.append(spectrum_intensity_max)
   # append peptide_mass_C
-  mass_C = deepnovo_config.mass_C_terminus + deepnovo_config.mass_H
+  mass_C = config.mass_C_terminus + config.mass_H
   peptide_mass_C = peptide_mass - mass_C
-  spectrum_mz_list.append(peptide_mass_C + charge*deepnovo_config.mass_H)
+  spectrum_mz_list.append(peptide_mass_C + charge * config.mass_H)
   spectrum_intensity_list.append(spectrum_intensity_max)
 
   # C-terminal, y-ion, peptide_mass_N
   # append C-terminal
-  mass_C = deepnovo_config.mass_C_terminus + deepnovo_config.mass_H
-  spectrum_mz_list.append(mass_C + charge*deepnovo_config.mass_H)
+  mass_C = config.mass_C_terminus + config.mass_H
+  spectrum_mz_list.append(mass_C + charge * config.mass_H)
   spectrum_intensity_list.append(spectrum_intensity_max)
 
 
-  pad_to_length(spectrum_mz_list, deepnovo_config.MAX_NUM_PEAK)
-  pad_to_length(spectrum_intensity_list, deepnovo_config.MAX_NUM_PEAK)
+  pad_to_length(spectrum_mz_list, config.MAX_NUM_PEAK)
+  pad_to_length(spectrum_intensity_list, config.MAX_NUM_PEAK)
 
   spectrum_mz = np.array(spectrum_mz_list, dtype=np.float32)
-  spectrum_mz_location = np.ceil(spectrum_mz * deepnovo_config.spectrum_reso).astype(np.int32)
+  spectrum_mz_location = np.ceil(spectrum_mz * config.spectrum_reso).astype(np.int32)
 
-  neutral_mass = spectrum_mz - charge*deepnovo_config.mass_H
-  in_bound_mask = np.logical_and(neutral_mass > 0., neutral_mass < deepnovo_config.MZ_MAX)
+  neutral_mass = spectrum_mz - charge * config.mass_H
+  in_bound_mask = np.logical_and(neutral_mass > 0., neutral_mass < config.MZ_MAX)
   neutral_mass[~in_bound_mask] = 0.
   # intensity
   spectrum_intensity = np.array(spectrum_intensity_list, dtype=np.float32)
   norm_intensity = spectrum_intensity / spectrum_intensity_max
 
-  spectrum_representation = np.zeros(deepnovo_config.embedding_size, dtype=np.float32)
+  spectrum_representation = np.zeros(config.embedding_size, dtype=np.float32)
   for i, loc in enumerate(spectrum_mz_location):
-    if loc < 0.5 or loc > deepnovo_config.n_position:
+    if loc < 0.5 or loc > config.n_position:
       continue
     else:
       spectrum_representation += sinusoid_matrix[loc] * norm_intensity[i]
 
-  top_N_indices = np.argpartition(norm_intensity, -deepnovo_config.MAX_NUM_PEAK)[-deepnovo_config.MAX_NUM_PEAK:]
+  top_N_indices = np.argpartition(norm_intensity, -config.MAX_NUM_PEAK)[-config.MAX_NUM_PEAK:]
   intensity = norm_intensity[top_N_indices]
   mass_location = neutral_mass[top_N_indices]
 

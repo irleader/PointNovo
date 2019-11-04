@@ -16,7 +16,7 @@ import re
 
 import numpy as np
 import math
-import deepnovo_config
+import config
 
 
 def read_feature_accuracy(input_file, split_char):
@@ -89,11 +89,11 @@ def select_top_score(input_file, output_file, split_char, col_score, score_cutof
 
 if __name__ == '__main__':
   accuracy_cutoff = 0.90
-  input_file = deepnovo_config.denovo_output_file
-  accuracy_file = deepnovo_config.accuracy_file
+  input_file = config.denovo_output_file
+  accuracy_file = config.accuracy_file
   output_file = input_file + ".top90"
   split_char = '\t|\n'
-  col_score = deepnovo_config.pcol_score
+  col_score = config.pcol_score
   score_cutoff = find_score_cutoff(accuracy_file, accuracy_cutoff)
   select_top_score(input_file, output_file, split_char, col_score, score_cutoff)
 

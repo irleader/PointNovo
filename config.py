@@ -10,88 +10,28 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import tensorflow as tf
+import argparse
 from itertools import combinations
 # ==============================================================================
 # FLAGS (options) for this app
 # ==============================================================================
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--train_dir", type=str, default="train")
+parser.add_argument("--beam_size", type=int, default="5")
+parser.add_argument("--train", dest="train", action="store_true")
+parser.add_argument("--search_denovo", dest="search_denovo", action="store_true")
+parser.add_argument("--test", dest="test", action="store_true")
 
-tf.app.flags.DEFINE_string("train_dir",  # flag_name
-                           "train",  # default_value
-                           "Training directory.")  # docstring
+parser.set_defaults(train=False)
+parser.set_defaults(search_denovo=False)
+parser.set_defaults(search_db=False)
+parser.set_defaults(valid=False)
+parser.set_defaults(test=False)
 
-tf.app.flags.DEFINE_integer("direction",
-                            2,
-                            "Set to 0/1/2 for Forward/Backward/Bi-directional.")
+args = parser.parse_args()
 
-tf.app.flags.DEFINE_boolean("use_intensity",
-                            True,
-                            "Set to True to use intensity-model.")
-
-tf.app.flags.DEFINE_boolean("shared",
-                            False,
-                            "Set to True to use shared weights.")
-
-tf.app.flags.DEFINE_boolean("lstm_kmer",
-                            False,
-                            "Set to True to use lstm model on k-mers instead of full sequence.")
-
-tf.app.flags.DEFINE_boolean("knapsack_build",
-                            False,
-                            "Set to True to build knapsack matrix.")
-
-tf.app.flags.DEFINE_boolean("train",
-                            False,
-                            "Set to True for training.")
-
-tf.app.flags.DEFINE_boolean("valid",
-                            False,
-                            "set to true for validation")
-
-tf.app.flags.DEFINE_boolean("test_true_feeding",
-                            False,
-                            "Set to True for testing.")
-
-tf.app.flags.DEFINE_boolean("decode",
-                            False,
-                            "Set to True for decoding.")
-
-tf.app.flags.DEFINE_boolean("beam_search",
-                            False,
-                            "Set to True for beam search.")
-
-tf.app.flags.DEFINE_integer("beam_size",
-                            5,
-                            "Number of optimal paths to search during decoding.")
-
-tf.app.flags.DEFINE_boolean("search_db",
-                            False,
-                            "Set to True to do a database search.")
-
-tf.app.flags.DEFINE_boolean("search_denovo",
-                            False,
-                            "Set to True to do a denovo search.")
-
-tf.app.flags.DEFINE_boolean("test",
-                            False,
-                            "Set to True to test the prediction accuracy.")
-
-tf.app.flags.DEFINE_boolean("header_seq",
-                            True,
-                            "Set to False if peptide sequence is not provided.")
-
-tf.app.flags.DEFINE_boolean("decoy",
-                            False,
-                            "Set to True to search decoy database.")
-
-tf.app.flags.DEFINE_integer("multiprocessor",
-                            1,
-                            "Use multi processors to read data during training.")
-
-tf.app.flags.DEFINE_string("f", "", "")
-
-FLAGS = tf.app.flags.FLAGS
+FLAGS = args
 train_dir = FLAGS.train_dir
 use_lstm = False
 
@@ -153,6 +93,7 @@ vocab_size = len(vocab_reverse)
 print("Training vocab_size ", vocab_size)
 
 # database search parameter
+## the PTMs to be included in the database search
 fix_mod_dict = {"C": "C(Carbamidomethylation)"}
 # var_mod_dict = {"N": "N(Deamidation)", 'Q': 'Q(Deamidation)', 'M': 'M(Oxidation)'}
 var_mod_dict = {'M': 'M(Oxidation)'}
@@ -165,7 +106,7 @@ normalizing_mean_n = 10
 
 inference_value_max_batch_size = 20
 num_psm_per_scan_for_percolator = 10
-db_fasta_file = "fasta_files/peaks_small_db_with_decoy.fasta"
+db_fasta_file = "fasta_files/uniprot_sprot_human_with_decoy.fasta"
 num_db_searcher_worker = 8
 fragment_ion_mz_diff_threshold = 0.02
 quick_scorer = "num_matched_ions"
@@ -273,16 +214,6 @@ mass_AA_min = mass_AA["G"]  # 57.02146
 # ==============================================================================
 
 
-# if change, need to re-compile cython_speedup << NO NEED
-# ~ SPECTRUM_RESOLUTION = 10 # bins for 1.0 Da = precision 0.1 Da
-# ~ SPECTRUM_RESOLUTION = 20 # bins for 1.0 Da = precision 0.05 Da
-# ~ SPECTRUM_RESOLUTION = 40 # bins for 1.0 Da = precision 0.025 Da
-
-
-# if change, need to re-compile cython_speedup << NO NEED
-WINDOW_SIZE = 10  # 10 bins
-print("WINDOW_SIZE ", WINDOW_SIZE)
-
 MZ_MAX = 5000.0 if FLAGS.search_db else 3000.0
 
 MAX_NUM_PEAK = 1000
@@ -306,7 +237,6 @@ print("MAX_LEN ", MAX_LEN)
 # ==============================================================================
 # HYPER-PARAMETERS of the NEURAL NETWORKS
 # ==============================================================================
-
 
 num_ion = 12
 print("num_ion ", num_ion)
@@ -338,15 +268,6 @@ num_epoch = 20
 
 init_lr = 1e-3
 
-train_stack_size = 500  # 3000 # 5000
-valid_stack_size = 1500  # 1000 # 3000 # 5000
-test_stack_size = 5000
-decode_stack_size = 1000  # 3000
-print("train_stack_size ", train_stack_size)
-print("valid_stack_size ", valid_stack_size)
-print("test_stack_size ", test_stack_size)
-print("decode_stack_size ", decode_stack_size)
-
 steps_per_validation = 300  # 100 # 2 # 4 # 200
 print("steps_per_validation ", steps_per_validation)
 
@@ -372,57 +293,23 @@ input_feature_file_test = "data.training/dia.hla.elife.jurkat_oxford/testing_jur
 # denovo files
 denovo_input_spectrum_file = "ABRF_DDA/spectrums.mgf"
 denovo_input_feature_file = "ABRF_DDA/features.csv.identified.test.nodup"
+denovo_output_file = denovo_input_feature_file + ".deepnovo_denovo"
 
 # db search files
-# search_db_input_spectrum_file = "PXD011170/spectrum.mgf"
-# search_db_input_feature_file = "PXD011170/features.csv"
-# search_db_input_spectrum_file = "PXD011170/ARZ5/spectrum.mgf"
-# search_db_input_feature_file = "PXD011170/ARZ5/features.csv"
-# search_db_input_spectrum_file = "PXD007580/sample_pp01_01/spectrum.mgf"
-# search_db_input_feature_file = "PXD007580/sample_pp01_01/features.csv"
-# search_db_input_spectrum_file = "PXD007580/spectrum.mgf"
-# search_db_input_feature_file = "PXD007580/features.csv"
 search_db_input_spectrum_file = "Lumos_data/PXD008999/export_0.mgf"
 search_db_input_feature_file = "Lumos_data/PXD008999/export_0.csv"
 db_output_file = search_db_input_feature_file + '.pin'
 
-# denovo_input_spectrum_file = "high.clambacteria.PXD004536/spectrum.mgf"  # endoloripes
-# denovo_input_feature_file = "high.clambacteria.PXD004536/features.csv"
-#
-# denovo_input_spectrum_file = "high.bacillus.PXD004565/spectrum.mgf"
-# denovo_input_feature_file = "high.bacillus.PXD004565/features.csv"
-denovo_output_file = denovo_input_feature_file + ".deepnovo_denovo"
-# db files
-# ~ db_fasta_file = "data/uniprot_sprot.human.db_decoy.fasta"
-# ~ db_input_spectrum_file = "data.training/dia.pecan.hela.2018_03_29/testing.spectrum.mgf"
-# ~ db_input_feature_file = "data.training/dia.abrf.2018_03_27/testing.feature.csv.2k"
-# ~ db_output_file = db_input_feature_file + ".deepnovo_db"
-# ~ if FLAGS.decoy:
-# ~ db_output_file += ".decoy"
-# hybrid files
-# ~ hybrid_fasta_file = "data/uniprot_sprot.human.db_decoy.fasta"
-# ~ hybrid_input_spectrum_file = "data.training/dia.abrf.2018_03_27/prediction.spectrum.mgf"
-# ~ hybrid_input_feature_file = "data.training/dia.abrf.2018_03_27/prediction.feature.csv.part1"
-# ~ hybrid_denovo_file = hybrid_input_feature_file + ".deepnovo_hybrid_denovo"
-# ~ hybrid_output_file = hybrid_input_feature_file + ".deepnovo_hybrid"
-# ~ if FLAGS.decoy:
-# ~ hybrid_output_file += ".decoy"
 # test accuracy
 predicted_format = "deepnovo"
 target_file = denovo_input_feature_file
 predicted_file = denovo_output_file
-# predicted_file = "data.training/dia.pecan.plasma.2018_03_29/testing_plasma.unlabeled.csv.deepnovo_denovo.top90"
-# ~ predicted_format = "peaks"
-# ~ target_file = "data.training/dia.urine.2018_04_23/testing_gs.feature.csv"
-# ~ predicted_file = "data.training/dia.urine.2018_04_23/peaks.denovo.csv.uti"
+
 accuracy_file = predicted_file + ".accuracy"
 denovo_only_file = predicted_file + ".denovo_only"
 scan2fea_file = predicted_file + ".scan2fea"
 multifea_file = predicted_file + ".multifea"
 # ==============================================================================
-neighbor_size = 5  # allow up to ? spectra, including the main spectrum
-dia_window = 20.0  # the window size of MS2 scan in Dalton
-focal_loss = True
 # feature file column format
 col_feature_id = "spec_group_id"
 col_precursor_mz = "m/z"

@@ -22,3 +22,7 @@ denovo:
 .PHONY: test
 test:
 	python main.py --test
+
+.PHONY: db
+db:
+	python main.py --search_db

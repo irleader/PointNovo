@@ -2,7 +2,7 @@ import os
 import torch
 import time
 import logging
-import deepnovo_config
+import config
 from typing import List
 import numpy as np
 from dataclasses import dataclass
@@ -32,7 +32,7 @@ class KnapsackSearcher(object):
     def __init__(self, MZ_MAX, knapsack_file):
         self.knapsack_file = knapsack_file
         self.MZ_MAX = MZ_MAX
-        self.knapsack_aa_resolution = deepnovo_config.KNAPSACK_AA_RESOLUTION
+        self.knapsack_aa_resolution = config.KNAPSACK_AA_RESOLUTION
         if os.path.isfile(knapsack_file):
             logging.info("KnapsackSearcher.__init__(): load knapsack matrix")
             self.knapsack_matrix = np.load(knapsack_file)
@@ -41,12 +41,12 @@ class KnapsackSearcher(object):
             self.knapsack_matrix = self._build_knapsack()
 
     def _build_knapsack(self):
-        max_mass = self.MZ_MAX - deepnovo_config.mass_N_terminus - deepnovo_config.mass_C_terminus
+        max_mass = self.MZ_MAX - config.mass_N_terminus - config.mass_C_terminus
         max_mass_round = int(round(max_mass * self.knapsack_aa_resolution))
         max_mass_upperbound = max_mass_round + self.knapsack_aa_resolution
-        knapsack_matrix = np.zeros(shape=(deepnovo_config.vocab_size, max_mass_upperbound), dtype=bool)
-        for aa_id in range(3, deepnovo_config.vocab_size):
-            mass_aa = int(round(deepnovo_config.mass_ID[aa_id] * self.knapsack_aa_resolution))
+        knapsack_matrix = np.zeros(shape=(config.vocab_size, max_mass_upperbound), dtype=bool)
+        for aa_id in range(3, config.vocab_size):
+            mass_aa = int(round(config.mass_ID[aa_id] * self.knapsack_aa_resolution))
 
             for col in range(max_mass_upperbound):
                 current_mass = col + 1
@@ -69,7 +69,7 @@ class KnapsackSearcher(object):
         mass_round = int(round(mass * self.knapsack_aa_resolution))
         mass_upperbound = mass_round + knapsack_tolerance
         mass_lowerbound = mass_round - knapsack_tolerance
-        if mass_upperbound < deepnovo_config.mass_AA_min_round:
+        if mass_upperbound < config.mass_AA_min_round:
             return []
         mass_lowerbound_col = mass_lowerbound - 1
         mass_upperbound_col = mass_upperbound - 1
@@ -118,12 +118,12 @@ class IonCNNDenovo(object):
         direction = start_point_batch[0].direction
         if direction == Direction.forward:
             get_start_mass = lambda x: x.prefix_mass
-            first_label = deepnovo_config.GO_ID
-            last_label = deepnovo_config.EOS_ID
+            first_label = config.GO_ID
+            last_label = config.EOS_ID
         elif direction == Direction.backward:
             get_start_mass = lambda x: x.suffix_mass
-            first_label = deepnovo_config.EOS_ID
-            last_label = deepnovo_config.GO_ID
+            first_label = config.EOS_ID
+            last_label = config.GO_ID
         else:
             raise ValueError('direction neither forward nor backward')
 
@@ -137,7 +137,7 @@ class IonCNNDenovo(object):
         batch_spectrum_representation = torch.from_numpy(batch_spectrum_representation).to(device)
 
         initial_hidden_state_tuple = model_wrapper.initial_hidden_state(batch_spectrum_representation) if \
-            deepnovo_config.use_lstm else None
+            config.use_lstm else None
 
         # initialize activate search list
         active_search_list = []
@@ -147,7 +147,7 @@ class IonCNNDenovo(object):
 
             spectrum_state = (batch_peak_location[feature_index], batch_peak_intensity[feature_index])
 
-            if deepnovo_config.use_lstm:
+            if config.use_lstm:
                 lstm_state = (initial_hidden_state_tuple[0][:, feature_index, :],
                               initial_hidden_state_tuple[1][:, feature_index, :]
                               )
@@ -223,8 +223,8 @@ class IonCNNDenovo(object):
 
                     ion_location = get_ion_index(precursor_mass, aa_seq_mass, direction_cint_map[direction])  # [26,8]
 
-                    residual_mass = precursor_mass - aa_seq_mass - deepnovo_config.mass_ID[last_label]
-                    knapsack_tolerance = int(round(peak_mass_tolerance * deepnovo_config.KNAPSACK_AA_RESOLUTION))
+                    residual_mass = precursor_mass - aa_seq_mass - config.mass_ID[last_label]
+                    knapsack_tolerance = int(round(peak_mass_tolerance * config.KNAPSACK_AA_RESOLUTION))
                     knapsack_candidates = self.knapsack_searcher.search_knapsack(residual_mass, knapsack_tolerance)
 
                     if not knapsack_candidates:
@@ -236,7 +236,7 @@ class IonCNNDenovo(object):
                     # get hidden state block
                     block_peak_location.append(original_spectrum_tuple[0])
                     block_peak_intensity.append(original_spectrum_tuple[1])
-                    if deepnovo_config.use_lstm:
+                    if config.use_lstm:
                         block_lstm_h.append(lstm_state_tuple[0])
                         block_lstm_c.append(lstm_state_tuple[1])
 
@@ -259,7 +259,7 @@ class IonCNNDenovo(object):
             block_ion_location = torch.unsqueeze(block_ion_location, dim=1)  # [batch, 1, 26, 8]
             block_peak_location = torch.stack(block_peak_location, dim=0).contiguous()
             block_peak_intensity = torch.stack(block_peak_intensity, dim=0).contiguous()
-            if deepnovo_config.use_lstm:
+            if config.use_lstm:
                 block_lstm_h = torch.stack(block_lstm_h, dim=1).contiguous()
                 block_lstm_c = torch.stack(block_lstm_c, dim=1).contiguous()
                 block_state_tuple = (block_lstm_h, block_lstm_c)
@@ -294,14 +294,14 @@ class IonCNNDenovo(object):
                             new_score_list = block_score_list[index] + [0.0]
                             new_score_sum = block_score_sum[index] + 0.0
 
-                        if deepnovo_config.use_lstm:
+                        if config.use_lstm:
                             new_path_state_tuple = (new_state_tuple[0][:, index, :], new_state_tuple[1][:, index, :])
                         else:
                             new_path_state_tuple = None
 
                         new_path = SearchPath(
                             aa_id_list=block_aa_id_list[index] + [aa_id],
-                            aa_seq_mass=block_aa_seq_mass[index] + deepnovo_config.mass_ID[aa_id],
+                            aa_seq_mass=block_aa_seq_mass[index] + config.mass_ID[aa_id],
                             score_list=new_score_list,
                             score_sum=new_score_sum,
                             lstm_state=new_path_state_tuple,
@@ -325,17 +325,17 @@ class IonCNNDenovo(object):
 
     @staticmethod
     def _get_start_point(feature_dp_batch: list) -> tuple:
-        mass_GO = deepnovo_config.mass_ID[deepnovo_config.GO_ID]
+        mass_GO = config.mass_ID[config.GO_ID]
         forward_start_point_lists = [BeamSearchStartPoint(prefix_mass=mass_GO,
                                                           suffix_mass=feature_dp.original_dda_feature.mass - mass_GO,
-                                                          mass_tolerance=deepnovo_config.PRECURSOR_MASS_PRECISION_TOLERANCE,
+                                                          mass_tolerance=config.PRECURSOR_MASS_PRECISION_TOLERANCE,
                                                           direction=Direction.forward)
                                      for feature_dp in feature_dp_batch]
 
-        mass_EOS = deepnovo_config.mass_ID[deepnovo_config.EOS_ID]
+        mass_EOS = config.mass_ID[config.EOS_ID]
         backward_start_point_lists = [BeamSearchStartPoint(prefix_mass=feature_dp.original_dda_feature.mass - mass_EOS,
                                                            suffix_mass=mass_EOS,
-                                                           mass_tolerance=deepnovo_config.PRECURSOR_MASS_PRECISION_TOLERANCE,
+                                                           mass_tolerance=config.PRECURSOR_MASS_PRECISION_TOLERANCE,
                                                            direction=Direction.backward)
                                       for feature_dp in feature_dp_batch]
         return forward_start_point_lists, backward_start_point_lists
@@ -357,10 +357,10 @@ class IonCNNDenovo(object):
             candidate_list = top_candidate_batch[feature_index]
             for beam_search_sequence in candidate_list:
                 sequence = beam_search_sequence.sequence
-                sequence_mass = sum(deepnovo_config.mass_ID[x] for x in sequence)
-                sequence_mass += deepnovo_config.mass_ID[deepnovo_config.GO_ID] + deepnovo_config.mass_ID[
-                    deepnovo_config.EOS_ID]
-                if abs(sequence_mass - precursor_mass) <= deepnovo_config.PRECURSOR_MASS_PRECISION_TOLERANCE:
+                sequence_mass = sum(config.mass_ID[x] for x in sequence)
+                sequence_mass += config.mass_ID[config.GO_ID] + config.mass_ID[
+                    config.EOS_ID]
+                if abs(sequence_mass - precursor_mass) <= config.PRECURSOR_MASS_PRECISION_TOLERANCE:
                     logger.debug(f"sequence {sequence} of feature "
                                  f"{feature_dp_batch[feature_index].original_dda_feature.feature_id} refined")
                     refine_batch[feature_index].append(beam_search_sequence)
@@ -404,8 +404,8 @@ class IonCNNDenovo(object):
         logger.info("start beam search denovo")
         predicted_denovo_list = []
 
-        test_set_iter = chunks(list(range(len(beam_search_reader))), n=deepnovo_config.batch_size)
-        total_batch_num = int(len(beam_search_reader) / deepnovo_config.batch_size)
+        test_set_iter = chunks(list(range(len(beam_search_reader))), n=config.batch_size)
+        total_batch_num = int(len(beam_search_reader) / config.batch_size)
         for index, feature_batch_index in enumerate(test_set_iter):
             feature_dp_batch = [beam_search_reader[i] for i in feature_batch_index]
             logger.info("Read {}th/{} batches".format(index, total_batch_num))

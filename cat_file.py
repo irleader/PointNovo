@@ -3,14 +3,14 @@ import os
 from utils.merge import cat_file_mgf, cat_file_feature, split_identified_and_unidentified_features
 import csv
 import numpy as np
-import deepnovo_config
+import config
 from data_reader import parse_raw_sequence
 
 
 def compute_neutral_peptide_mass(peptide: list):
-    peptide_neutral_mass = deepnovo_config.mass_N_terminus + deepnovo_config.mass_C_terminus
+    peptide_neutral_mass = config.mass_N_terminus + config.mass_C_terminus
     for aa in peptide:
-        peptide_neutral_mass += deepnovo_config.mass_AA[aa]
+        peptide_neutral_mass += config.mass_AA[aa]
     return peptide_neutral_mass
 
 
@@ -31,7 +31,7 @@ def feature_file_mass_correction(feature_filename: str):
         for line in reader:
             mz = float(line[mz_index])
             z = float(line[z_index])
-            observed_mass = mz * z - z * deepnovo_config.mass_H
+            observed_mass = mz * z - z * config.mass_H
             if not line[seq_index]:
                 continue
             okay, peptide = parse_raw_sequence(line[seq_index])

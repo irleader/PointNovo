@@ -14,7 +14,7 @@ import sys
 
 import numpy as np
 
-import deepnovo_config
+import config
 from data_reader import parse_raw_sequence
 
 class WorkerTest(object):
@@ -31,15 +31,15 @@ class WorkerTest(object):
 
     # we currently use deepnovo_config to store both const & settings
     # the settings should be shown in __init__() to keep track carefully
-    self.MZ_MAX = deepnovo_config.MZ_MAX
+    self.MZ_MAX = config.MZ_MAX
 
-    self.target_file = deepnovo_config.target_file
-    self.predicted_file = deepnovo_config.predicted_file
-    self.predicted_format = deepnovo_config.predicted_format
-    self.accuracy_file = deepnovo_config.accuracy_file
-    self.denovo_only_file = deepnovo_config.denovo_only_file
-    self.scan2fea_file = deepnovo_config.scan2fea_file
-    self.multifea_file = deepnovo_config.multifea_file
+    self.target_file = config.target_file
+    self.predicted_file = config.predicted_file
+    self.predicted_format = config.predicted_format
+    self.accuracy_file = config.accuracy_file
+    self.denovo_only_file = config.denovo_only_file
+    self.scan2fea_file = config.scan2fea_file
+    self.multifea_file = config.multifea_file
     print("target_file = {0:s}".format(self.target_file))
     print("predicted_file = {0:s}".format(self.predicted_file))
     print("predicted_format = {0:s}".format(self.predicted_format))
@@ -120,7 +120,7 @@ class WorkerTest(object):
     target_len_db_mass = sum([len(x) for x in target_dict_db_mass.values()])
 
     # read predicted peptides from deepnovo or peaks
-    if deepnovo_config.predicted_format == "deepnovo":
+    if config.predicted_format == "deepnovo":
       self._get_predicted()
     else:
       self._get_predicted_peaks()
@@ -166,8 +166,8 @@ class WorkerTest(object):
         best_predicted_sequence = predicted["sequence"][0]
         best_predicted_score = predicted["score"][0]
         for predicted_sequence, predicted_score in zip(predicted["sequence"], predicted["score"]):
-          predicted_AA_id = [deepnovo_config.vocab[x] for x in predicted_sequence]
-          target_AA_id = [deepnovo_config.vocab[x] for x in target]
+          predicted_AA_id = [config.vocab[x] for x in predicted_sequence]
+          target_AA_id = [config.vocab[x] for x in target]
           recall_AA = self._match_AA_novor(target_AA_id, predicted_AA_id)
           if (recall_AA > best_recall_AA
               or (recall_AA == best_recall_AA and predicted_score > best_predicted_score)):
@@ -290,9 +290,9 @@ class WorkerTest(object):
     #~ print("".join(["="] * 80)) # section-separating line ===
     #~ print("WorkerDB: _compute_peptide_mass()")
 
-    peptide_mass = (deepnovo_config.mass_N_terminus
-                    + sum(deepnovo_config.mass_AA[aa] for aa in peptide)
-                    + deepnovo_config.mass_C_terminus)
+    peptide_mass = (config.mass_N_terminus
+                    + sum(config.mass_AA[aa] for aa in peptide)
+                    + config.mass_C_terminus)
 
     return peptide_mass
 
@@ -304,12 +304,12 @@ class WorkerTest(object):
     print("WorkerTest._get_predicted()")
 
     predicted_list = []
-    col_feature_id = deepnovo_config.pcol_feature_id
-    col_feature_area = deepnovo_config.pcol_feature_area
-    col_sequence = deepnovo_config.pcol_sequence
-    col_score = deepnovo_config.pcol_score
-    col_scan_list_middle = deepnovo_config.pcol_scan_list_middle
-    col_scan_list_original = deepnovo_config.pcol_scan_list_original
+    col_feature_id = config.pcol_feature_id
+    col_feature_area = config.pcol_feature_area
+    col_sequence = config.pcol_sequence
+    col_score = config.pcol_score
+    col_scan_list_middle = config.pcol_scan_list_middle
+    col_scan_list_original = config.pcol_scan_list_original
     with open(self.predicted_file, 'r') as handle:
       # header
       handle.readline()
@@ -391,7 +391,7 @@ class WorkerTest(object):
     with open(self.target_file, 'r') as handle:
       header_line = handle.readline()
       header = header_line.strip().split(',')
-      raw_sequence_index = header.index(deepnovo_config.col_raw_sequence)
+      raw_sequence_index = header.index(config.col_raw_sequence)
       for line in handle:
         line = re.split(',|\r|\n', line)
         feature_id = line[0]
@@ -413,9 +413,9 @@ class WorkerTest(object):
     num_match = 0
     target_len = len(target)
     predicted_len = len(predicted)
-    target_mass = [deepnovo_config.mass_ID[x] for x in target]
+    target_mass = [config.mass_ID[x] for x in target]
     target_mass_cum = np.cumsum(target_mass)
-    predicted_mass = [deepnovo_config.mass_ID[x] for x in predicted]
+    predicted_mass = [config.mass_ID[x] for x in predicted]
     predicted_mass_cum = np.cumsum(predicted_mass)
   
     i = 0

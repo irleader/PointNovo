@@ -10,7 +10,7 @@ import re
 import logging
 from dataclasses import dataclass
 
-import deepnovo_config
+import config
 from deepnovo_cython_modules import get_ion_index, process_peaks
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ def parse_raw_sequence(raw_sequence: str):
             index += 1
 
     for aa in peptide:
-        if aa not in deepnovo_config.vocab:
+        if aa not in config.vocab:
             logger.warning(f"unknown modification in seq {raw_sequence}")
             return False, peptide
     return True, peptide
@@ -146,25 +146,25 @@ class BaseDataset(Dataset):
         with open(feature_filename, 'r') as fr:
             reader = csv.reader(fr, delimiter=',')
             header = next(reader)
-            feature_id_index = header.index(deepnovo_config.col_feature_id)
-            mz_index = header.index(deepnovo_config.col_precursor_mz)
-            z_index = header.index(deepnovo_config.col_precursor_charge)
-            rt_mean_index = header.index(deepnovo_config.col_rt_mean)
-            seq_index = header.index(deepnovo_config.col_raw_sequence)
-            scan_index = header.index(deepnovo_config.col_scan_list)
-            feature_area_index = header.index(deepnovo_config.col_feature_area)
+            feature_id_index = header.index(config.col_feature_id)
+            mz_index = header.index(config.col_precursor_mz)
+            z_index = header.index(config.col_precursor_charge)
+            rt_mean_index = header.index(config.col_rt_mean)
+            seq_index = header.index(config.col_raw_sequence)
+            scan_index = header.index(config.col_scan_list)
+            feature_area_index = header.index(config.col_feature_area)
             for line in reader:
-                mass = (float(line[mz_index]) - deepnovo_config.mass_H) * float(line[z_index])
+                mass = (float(line[mz_index]) - config.mass_H) * float(line[z_index])
                 ok, peptide = parse_raw_sequence(line[seq_index])
                 if not ok:
                     skipped_by_ptm += 1
                     logger.debug(f"{line[seq_index]} skipped by ptm")
                     continue
-                if mass > deepnovo_config.MZ_MAX:
+                if mass > config.MZ_MAX:
                     skipped_by_mass += 1
                     logger.debug(f"{line[seq_index]} skipped by mass")
                     continue
-                if len(peptide) > deepnovo_config.MAX_LEN - 2:
+                if len(peptide) > config.MAX_LEN - 2:
                     skipped_by_length += 1
                     logger.debug(f"{line[seq_index]} skipped by length")
                     continue
@@ -195,7 +195,7 @@ class BaseDataset(Dataset):
             mz_float = float(mz)
             intensity_float = float(intensity)
             # skip an ion if its mass > MZ_MAX
-            if mz_float > deepnovo_config.MZ_MAX:
+            if mz_float > config.MZ_MAX:
                 line = self.input_spectrum_handle.readline()
                 continue
             mz_list.append(mz_float)
@@ -235,22 +235,22 @@ class DeepNovoTrainDataset(BaseDataset):
 
         assert np.max(peak_intensity) < 1.0 + 1e-5
 
-        peptide_id_list = [deepnovo_config.vocab[x] for x in feature.peptide]
-        forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
-        forward_id_target = peptide_id_list + [deepnovo_config.EOS_ID]
+        peptide_id_list = [config.vocab[x] for x in feature.peptide]
+        forward_id_input = [config.GO_ID] + peptide_id_list
+        forward_id_target = peptide_id_list + [config.EOS_ID]
         forward_ion_location_index_list = []
         prefix_mass = 0.
         for i, id in enumerate(forward_id_input):
-            prefix_mass += deepnovo_config.mass_ID[id]
+            prefix_mass += config.mass_ID[id]
             ion_location = get_ion_index(feature.mass, prefix_mass, 0)
             forward_ion_location_index_list.append(ion_location)
 
-        backward_id_input = [deepnovo_config.EOS_ID] + peptide_id_list[::-1]
-        backward_id_target = peptide_id_list[::-1] + [deepnovo_config.GO_ID]
+        backward_id_input = [config.EOS_ID] + peptide_id_list[::-1]
+        backward_id_target = peptide_id_list[::-1] + [config.GO_ID]
         backward_ion_location_index_list = []
         suffix_mass = 0
         for i, id in enumerate(backward_id_input):
-            suffix_mass += deepnovo_config.mass_ID[id]
+            suffix_mass += config.mass_ID[id]
             ion_location = get_ion_index(feature.mass, suffix_mass, 1)
             backward_ion_location_index_list.append(ion_location)
 
@@ -281,7 +281,7 @@ def collate_func(train_data_list):
     train_data_list.sort(key=lambda x: len(x.forward_id_target), reverse=True)
     batch_max_seq_len = len(train_data_list[0].forward_id_target)
     ion_index_shape = train_data_list[0].forward_ion_location_index_list[0].shape
-    assert ion_index_shape == (deepnovo_config.vocab_size, deepnovo_config.num_ion)
+    assert ion_index_shape == (config.vocab_size, config.num_ion)
 
     peak_location = [x.peak_location for x in train_data_list]
     peak_location = np.stack(peak_location) # [batch_size, N]
@@ -410,12 +410,12 @@ class DBSearchDataset(BaseDataset):
     def __init__(self, feature_filename, spectrum_filename, db_searcher: DataBaseSearcher):
         super(DBSearchDataset, self).__init__(feature_filename, spectrum_filename)
         self.db_searcher = db_searcher
-        if deepnovo_config.quick_scorer == "num_matched_ions":
+        if config.quick_scorer == "num_matched_ions":
             self.quick_scorer = self.get_num_matched_fragment_ions
-        elif deepnovo_config.quick_scorer == "peaks_scorer":
+        elif config.quick_scorer == "peaks_scorer":
             self.quick_scorer = self.peaks_quick_scorer
         else:
-            raise ValueError(f"unknown quick_scorer attribute: {deepnovo_config.quick_scorer}")
+            raise ValueError(f"unknown quick_scorer attribute: {config.quick_scorer}")
 
     @staticmethod
     def peptide_to_aa_id_seq(peptide: list, direction=0):
@@ -425,14 +425,14 @@ class DBSearchDataset(BaseDataset):
         :param direction: 0 for forward, 1 for backward
         :return:
         """
-        if len(peptide) > deepnovo_config.MAX_LEN - 2:
-            raise ValueError(f"received a peptide longer than {deepnovo_config.MAX_LEN}")
-        aa_id_seq = [deepnovo_config.vocab[aa] for aa in peptide]
-        aa_id_seq.insert(0, deepnovo_config.GO_ID)
-        aa_id_seq.append(deepnovo_config.EOS_ID)
+        if len(peptide) > config.MAX_LEN - 2:
+            raise ValueError(f"received a peptide longer than {config.MAX_LEN}")
+        aa_id_seq = [config.vocab[aa] for aa in peptide]
+        aa_id_seq.insert(0, config.GO_ID)
+        aa_id_seq.append(config.EOS_ID)
         if direction != 0:
             aa_id_seq = aa_id_seq[::-1]
-        aa_id_seq = pad_to_length(aa_id_seq, deepnovo_config.PAD_ID, deepnovo_config.MAX_LEN)
+        aa_id_seq = pad_to_length(aa_id_seq, config.PAD_ID, config.MAX_LEN)
         return aa_id_seq
 
     def _get_feature(self, feature: DDAFeature):
@@ -465,17 +465,17 @@ class DBSearchDataset(BaseDataset):
             #  no candidates
             return None
 
-        if len(candidate_list) > deepnovo_config.normalizing_std_n:
+        if len(candidate_list) > config.normalizing_std_n:
             quick_scores = [self.quick_scorer(feature.mass, peak_location, peak_intensity, pc.seq) for pc in candidate_list]
             quick_scores = np.array(quick_scores)
-            top_k_ind = np.argpartition(quick_scores, -deepnovo_config.normalizing_std_n)[-deepnovo_config.normalizing_std_n:]
+            top_k_ind = np.argpartition(quick_scores, -config.normalizing_std_n)[-config.normalizing_std_n:]
 
             top_candidate_list = []
             for ind in top_k_ind:
                 top_candidate_list.append(candidate_list[ind])
             candidate_list = top_candidate_list
 
-        assert len(candidate_list) == deepnovo_config.normalizing_std_n
+        assert len(candidate_list) == config.normalizing_std_n
 
         forward_id_target_arr = []
         backward_id_target_arr = []
@@ -489,22 +489,22 @@ class DBSearchDataset(BaseDataset):
             ppm_arr.append(pc.ppm)
             num_var_mod_arr.append(pc.num_var_mod)
 
-            peptide_id_list = [deepnovo_config.vocab[x] for x in pc.seq]
-            forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
-            forward_id_target = peptide_id_list + [deepnovo_config.EOS_ID]
+            peptide_id_list = [config.vocab[x] for x in pc.seq]
+            forward_id_input = [config.GO_ID] + peptide_id_list
+            forward_id_target = peptide_id_list + [config.EOS_ID]
             forward_ion_location_index_list = []
             prefix_mass = 0.
             for i, id in enumerate(forward_id_input):
-                prefix_mass += deepnovo_config.mass_ID[id]
+                prefix_mass += config.mass_ID[id]
                 ion_location = get_ion_index(feature.mass, prefix_mass, 0)
                 forward_ion_location_index_list.append(ion_location)
 
-            backward_id_input = [deepnovo_config.EOS_ID] + peptide_id_list[::-1]
-            backward_id_target = peptide_id_list[::-1] + [deepnovo_config.GO_ID]
+            backward_id_input = [config.EOS_ID] + peptide_id_list[::-1]
+            backward_id_target = peptide_id_list[::-1] + [config.GO_ID]
             backward_ion_location_index_list = []
             suffix_mass = 0
             for i, id in enumerate(backward_id_input):
-                suffix_mass += deepnovo_config.mass_ID[id]
+                suffix_mass += config.mass_ID[id]
                 ion_location = get_ion_index(feature.mass, suffix_mass, 1)
                 backward_ion_location_index_list.append(ion_location)
 
@@ -515,7 +515,7 @@ class DBSearchDataset(BaseDataset):
 
         # assemble data in the way in collate function.
         ion_index_shape = forward_ion_location_index_list[0].shape
-        assert ion_index_shape == (deepnovo_config.vocab_size, deepnovo_config.num_ion)
+        assert ion_index_shape == (config.vocab_size, config.num_ion)
         batch_max_seq_len = max([len(x) for x in forward_id_target_arr])
         num_candidates = len(forward_id_target_arr)
         if batch_max_seq_len > 50:
@@ -576,7 +576,7 @@ class DBSearchDataset(BaseDataset):
         """
         b_mass = prefix_mass
         y_mass = precursor_neutral_mass - b_mass
-        a_mass = b_mass - deepnovo_config.mass_CO
+        a_mass = b_mass - config.mass_CO
 
         ion_list = [b_mass, y_mass, a_mass]
         theoretical_location = np.asarray(ion_list, dtype=np.float32)
@@ -591,18 +591,18 @@ class DBSearchDataset(BaseDataset):
         :return: num_matched_ions
         """
         peaks_location = np.expand_dims(peaks_location, axis=1)
-        peptide_id_list = [deepnovo_config.vocab[x] for x in seq]
-        forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
+        peptide_id_list = [config.vocab[x] for x in seq]
+        forward_id_input = [config.GO_ID] + peptide_id_list
         prefix_mass = 0.
         num_matched_ions = 0
         for i, id in enumerate(forward_id_input):
-            prefix_mass += deepnovo_config.mass_ID[id]
+            prefix_mass += config.mass_ID[id]
             ion_location = cls.get_fragment_ion_location(precursor_mass, prefix_mass)  # [3]
             ion_location = np.expand_dims(ion_location, axis=0)
 
             # diff matrix
             mz_diff = np.abs(peaks_location - ion_location)
-            mz_diff = np.any(mz_diff < deepnovo_config.fragment_ion_mz_diff_threshold)
+            mz_diff = np.any(mz_diff < config.fragment_ion_mz_diff_threshold)
             num_matched_ions += mz_diff.astype(np.int32)
         return num_matched_ions
 
@@ -610,12 +610,12 @@ class DBSearchDataset(BaseDataset):
     def peaks_quick_scorer(cls, precursor_mass, peaks_location, peaks_intensity, seq):
         peaks_location = np.expand_dims(peaks_location, axis=1)
         peaks_intensity = np.log(1 + 10 * peaks_intensity)  # use log intensity
-        peptide_id_list = [deepnovo_config.vocab[x] for x in seq]
-        forward_id_input = [deepnovo_config.GO_ID] + peptide_id_list
+        peptide_id_list = [config.vocab[x] for x in seq]
+        forward_id_input = [config.GO_ID] + peptide_id_list
         prefix_mass = 0.
         score = 0
         for i, id in enumerate(forward_id_input):
-            prefix_mass += deepnovo_config.mass_ID[id]
+            prefix_mass += config.mass_ID[id]
             ion_location = cls.get_fragment_ion_location(precursor_mass, prefix_mass)  # [3]
             ion_location = np.expand_dims(ion_location, axis=0)
 

@@ -6,7 +6,7 @@ from data_reader import DBSearchDataset, DBSearchData
 from model import DeepNovoPointNet, device
 from writer import PercolatorWriter, PSM
 import torch.nn.functional as F
-import deepnovo_config
+import config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -78,15 +78,15 @@ class PSMRank(object):
                 # when candidates too much, split into multiple batches or will have cudnn error
                 peptide_log_prob = []
                 aa_length = []
-                for i in range(forward_id_target.size(0) // deepnovo_config.inference_value_max_batch_size):
-                    index_range = range(i * deepnovo_config.inference_value_max_batch_size,
-                                        (i + 1) * deepnovo_config.inference_value_max_batch_size)
+                for i in range(forward_id_target.size(0) // config.inference_value_max_batch_size):
+                    index_range = range(i * config.inference_value_max_batch_size,
+                                        (i + 1) * config.inference_value_max_batch_size)
                     temp_forward_id_target = forward_id_target[index_range]
                     temp_forward = self.forward_model(forward_ion_location_index[index_range],
                                                       peaks_location[index_range],
                                                       peaks_intensity[index_range]
                                                       )  # (num_candidate, T, 26)
-                    forward_masking_matrix = ~(temp_forward_id_target == deepnovo_config.PAD_ID)
+                    forward_masking_matrix = ~(temp_forward_id_target == config.PAD_ID)
                     forward_masking_matrix = forward_masking_matrix.float()  # (num_candidate, T)
                     length = torch.sum(forward_masking_matrix, dim=1)
 
@@ -100,7 +100,7 @@ class PSMRank(object):
                     temp_backward = self.backward_model(backward_ion_location_index[index_range],
                                                         peaks_location[index_range],
                                                         peaks_intensity[index_range])  # (num_candidate, T, 26)
-                    backward_masking_matrix = ~(temp_backward_id_target == deepnovo_config.PAD_ID)
+                    backward_masking_matrix = ~(temp_backward_id_target == config.PAD_ID)
                     backward_masking_matrix = backward_masking_matrix.float()
                     backward_logprob = torch.gather(F.log_softmax(temp_backward, dim=-1),
                                                     dim=2,
@@ -110,13 +110,13 @@ class PSMRank(object):
                     peptide_log_prob.append(torch.max(forward_logprob, backward_logprob))
                     aa_length.append(length)
 
-                if forward_id_target.size(0) - (i + 1) * deepnovo_config.inference_value_max_batch_size > 0:
+                if forward_id_target.size(0) - (i + 1) * config.inference_value_max_batch_size > 0:
                     temp_forward = self.forward_model(
-                        forward_ion_location_index[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                        peaks_location[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                        peaks_intensity[(i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                        forward_ion_location_index[(i + 1) * config.inference_value_max_batch_size:],
+                        peaks_location[(i + 1) * config.inference_value_max_batch_size:],
+                        peaks_intensity[(i + 1) * config.inference_value_max_batch_size:]
                         )  # (num_candidate, T, 26)
-                    temp_forward_id_target = forward_id_target[(i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                    temp_forward_id_target = forward_id_target[(i + 1) * config.inference_value_max_batch_size:]
                     forward_masking_matrix = ~(temp_forward_id_target == 0)
                     forward_masking_matrix = forward_masking_matrix.float()  # (num_candidate, T)
                     length = torch.sum(forward_masking_matrix, dim=1)
@@ -128,12 +128,12 @@ class PSMRank(object):
 
                     temp_backward = self.backward_model(
                         backward_ion_location_index[
-                            (i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                        peaks_location[(i + 1) * deepnovo_config.inference_value_max_batch_size:],
-                        peaks_intensity[(i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                        (i + 1) * config.inference_value_max_batch_size:],
+                        peaks_location[(i + 1) * config.inference_value_max_batch_size:],
+                        peaks_intensity[(i + 1) * config.inference_value_max_batch_size:]
                         )  # (num_candidate, T, 26)
                     temp_backward_id_target = backward_id_target[
-                                              (i + 1) * deepnovo_config.inference_value_max_batch_size:]
+                                              (i + 1) * config.inference_value_max_batch_size:]
                     backward_masking_matrix = ~(temp_backward_id_target == 0)
                     backward_masking_matrix = backward_masking_matrix.float()
                     backward_logprob = torch.gather(F.log_softmax(temp_backward, dim=-1),
@@ -157,11 +157,11 @@ class PSMRank(object):
 
                 def get_normalization_stats(psm_scores):
                     # normalizing scores so that they are comparable across spectrums.
-                    k = min(deepnovo_config.normalizing_std_n, len(psm_scores))
-                    mean_n = deepnovo_config.normalizing_mean_n
-                    if k < deepnovo_config.normalizing_mean_n:
+                    k = min(config.normalizing_std_n, len(psm_scores))
+                    mean_n = config.normalizing_mean_n
+                    if k < config.normalizing_mean_n:
                         logger.warn(
-                            f"encounter a feature with less than {deepnovo_config.normalizing_mean_n} candidates")
+                            f"encounter a feature with less than {config.normalizing_mean_n} candidates")
                         mean_n = k
                     top_k_ind = np.argpartition(psm_scores, -k)[-k:]
                     top_k_scores = psm_scores[top_k_ind]
@@ -183,7 +183,7 @@ class PSMRank(object):
                 # select best candidate from the PCs from the fasta file
                 valid_indices = np.array(from_fasta_indices)
                 psm_scores = length_normalized_score[valid_indices]
-                nn = deepnovo_config.num_psm_per_scan_for_percolator
+                nn = config.num_psm_per_scan_for_percolator
                 if len(psm_scores) < nn:
                     logger.warning(f"do not have {nn} psm for percolator")
                     nn = len(psm_scores)

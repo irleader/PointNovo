@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
-import deepnovo_config
+import config
 from enum import Enum
 
 
 activation_func = F.relu
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_units = deepnovo_config.num_units
+num_units = config.num_units
 
 
 class TNet(nn.Module):
@@ -18,16 +18,16 @@ class TNet(nn.Module):
     def __init__(self, with_lstm=False):
         super(TNet, self).__init__()
         self.with_lstm = with_lstm
-        self.conv1 = nn.Conv1d(deepnovo_config.vocab_size * deepnovo_config.num_ion + 1, num_units, 1)
+        self.conv1 = nn.Conv1d(config.vocab_size * config.num_ion + 1, num_units, 1)
         self.conv2 = nn.Conv1d(num_units, 2*num_units, 1)
         self.conv3 = nn.Conv1d(2*num_units, 4*num_units, 1)
         self.fc1 = nn.Linear(4*num_units, 2*num_units)
         self.fc2 = nn.Linear(2*num_units, num_units)
         if not with_lstm:
-            self.output_layer = nn.Linear(num_units, deepnovo_config.vocab_size)
+            self.output_layer = nn.Linear(num_units, config.vocab_size)
         self.relu = nn.ReLU()
 
-        self.input_batch_norm = nn.BatchNorm1d(deepnovo_config.vocab_size * deepnovo_config.num_ion + 1)
+        self.input_batch_norm = nn.BatchNorm1d(config.vocab_size * config.num_ion + 1)
 
         self.bn1 = nn.BatchNorm1d(num_units)
         self.bn2 = nn.BatchNorm1d(2*num_units)
@@ -60,7 +60,7 @@ class DeepNovoPointNet(nn.Module):
     def __init__(self):
         super(DeepNovoPointNet, self).__init__()
         self.t_net = TNet(with_lstm=False)
-        self.distance_scale_factor = deepnovo_config.distance_scale_factor
+        self.distance_scale_factor = config.distance_scale_factor
 
     def forward(self, location_index, peaks_location, peaks_intensity):
         """
@@ -105,7 +105,7 @@ class DeepNovoPointNet(nn.Module):
 class InitNet(nn.Module):
     def __init__(self):
         super(InitNet, self).__init__()
-        self.init_state_layer = nn.Linear(deepnovo_config.embedding_size, 2 * deepnovo_config.lstm_hidden_units)
+        self.init_state_layer = nn.Linear(config.embedding_size, 2 * config.lstm_hidden_units)
 
     def forward(self, spectrum_representation):
         """
@@ -115,11 +115,11 @@ class InitNet(nn.Module):
             [num_lstm_layers, batch_size, lstm_units], [num_lstm_layers, batch_size, lstm_units],
         """
         x = torch.tanh(self.init_state_layer(spectrum_representation))
-        h_0, c_0 = torch.split(x, deepnovo_config.lstm_hidden_units, dim=1)
+        h_0, c_0 = torch.split(x, config.lstm_hidden_units, dim=1)
         h_0 = torch.unsqueeze(h_0, dim=0)
-        h_0 = h_0.repeat(deepnovo_config.num_lstm_layers, 1, 1)
+        h_0 = h_0.repeat(config.num_lstm_layers, 1, 1)
         c_0 = torch.unsqueeze(c_0, dim=0)
-        c_0 = c_0.repeat(deepnovo_config.num_lstm_layers, 1, 1)
+        c_0 = c_0.repeat(config.num_lstm_layers, 1, 1)
         return h_0, c_0
 
 
@@ -127,15 +127,15 @@ class DeepNovoPointNetWithLSTM(nn.Module):
     def __init__(self):
         super(DeepNovoPointNetWithLSTM, self).__init__()
         self.t_net = TNet(with_lstm=True)
-        self.embedding = nn.Embedding(num_embeddings=deepnovo_config.vocab_size,
-                                      embedding_dim=deepnovo_config.embedding_size)
-        self.lstm = nn.LSTM(deepnovo_config.embedding_size,
-                            deepnovo_config.lstm_hidden_units,
-                            num_layers=deepnovo_config.num_lstm_layers,
+        self.embedding = nn.Embedding(num_embeddings=config.vocab_size,
+                                      embedding_dim=config.embedding_size)
+        self.lstm = nn.LSTM(config.embedding_size,
+                            config.lstm_hidden_units,
+                            num_layers=config.num_lstm_layers,
                             batch_first=True)
-        self.dropout = nn.Dropout(deepnovo_config.dropout_rate)
-        self.output_layer = nn.Linear(deepnovo_config.num_units + deepnovo_config.lstm_hidden_units,
-                                      deepnovo_config.vocab_size)
+        self.dropout = nn.Dropout(config.dropout_rate)
+        self.output_layer = nn.Linear(config.num_units + config.lstm_hidden_units,
+                                      config.vocab_size)
 
     def forward(self, location_index, peaks_location, peaks_intensity, aa_input=None, state_tuple=None):
         """
@@ -164,7 +164,7 @@ class DeepNovoPointNetWithLSTM(nn.Module):
 
         location_exp_minus_abs_diff = torch.exp(
             -torch.abs(
-                (peaks_location - location_index) * deepnovo_config.distance_scale_factor
+                (peaks_location - location_index) * config.distance_scale_factor
             )
         )
         # [batch, T, N, 26*8]
@@ -175,7 +175,7 @@ class DeepNovoPointNetWithLSTM(nn.Module):
         input_feature = input_feature.view(batch_size * T, N, vocab_size * num_ion + 1)
         input_feature = input_feature.transpose(1, 2)
 
-        ion_feature = self.t_net(input_feature).view(batch_size, T, deepnovo_config.num_units)  # attention on peaks
+        ion_feature = self.t_net(input_feature).view(batch_size, T, config.num_units)  # attention on peaks
 
         # embedding
         aa_embedded = self.embedding(aa_input)
@@ -188,7 +188,7 @@ class DeepNovoPointNetWithLSTM(nn.Module):
         return logit, new_state_tuple
 
 
-if deepnovo_config.use_lstm:
+if config.use_lstm:
     DeepNovoModel = DeepNovoPointNetWithLSTM
 else:
     DeepNovoModel = DeepNovoPointNet
@@ -210,7 +210,7 @@ class InferenceModelWrapper(object):
         # make sure all models are in eval mode
         self.forward_model.eval()
         self.backward_model.eval()
-        if deepnovo_config.use_lstm:
+        if config.use_lstm:
             assert init_net is not None
             self.init_net = init_net
             self.init_net.eval()
@@ -232,7 +232,7 @@ class InferenceModelWrapper(object):
             model = self.backward_model
 
         with torch.no_grad():
-            if deepnovo_config.use_lstm:
+            if config.use_lstm:
                 logit, new_state_tuple = model(candidate_location, peaks_location, peaks_intensity, aa_input,
                                                state_tuple)
             else:

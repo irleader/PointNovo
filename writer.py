@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from data_reader import DDAFeature
-import deepnovo_config
+import config
 import logging
 import numpy as np
 
@@ -48,7 +48,7 @@ class DenovoWriter(object):
         scan_list_middle = dda_original_feature.scan
         scan_list_original = dda_original_feature.scan
         if searched_sequence.sequence:
-            predicted_sequence = ','.join([deepnovo_config.vocab_reverse[aa_id] for
+            predicted_sequence = ','.join([config.vocab_reverse[aa_id] for
                                            aa_id in searched_sequence.sequence])
             predicted_score = "{:.2f}".format(searched_sequence.score)
             predicted_score_max = predicted_score

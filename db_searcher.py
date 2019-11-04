@@ -4,7 +4,7 @@ from Bio import SeqIO
 from pyteomics import parser
 import numpy as np
 import logging
-import deepnovo_config
+import config
 from dataclasses import dataclass
 import re
 
@@ -24,16 +24,16 @@ def compute_peptide_mass(peptide: list):
     :return: peptide neutral mass
     """
 
-    peptide_neutral_mass = deepnovo_config.mass_N_terminus + deepnovo_config.mass_C_terminus
+    peptide_neutral_mass = config.mass_N_terminus + config.mass_C_terminus
     peptide_mass_l = peptide_neutral_mass
     peptide_mass_u = peptide_neutral_mass
 
     for aa in peptide:
-        peptide_neutral_mass += deepnovo_config.mass_AA[aa]
-        peptide_mass_l += deepnovo_config.mass_AA[aa]
-        peptide_mass_u += deepnovo_config.mass_AA[aa]
-        if aa in deepnovo_config.var_mod_dict:
-            mod_masses = [deepnovo_config.mass_AA[deepnovo_config.var_mod_dict[aa]], 0.]
+        peptide_neutral_mass += config.mass_AA[aa]
+        peptide_mass_l += config.mass_AA[aa]
+        peptide_mass_u += config.mass_AA[aa]
+        if aa in config.var_mod_dict:
+            mod_masses = [config.mass_AA[config.var_mod_dict[aa]], 0.]
             min_mass = min(mod_masses)
             max_mass = max(mod_masses)
             peptide_mass_l += min_mass
@@ -42,9 +42,9 @@ def compute_peptide_mass(peptide: list):
 
 
 def compute_neutral_peptide_mass(peptide: list):
-    peptide_neutral_mass = deepnovo_config.mass_N_terminus + deepnovo_config.mass_C_terminus
+    peptide_neutral_mass = config.mass_N_terminus + config.mass_C_terminus
     for aa in peptide:
-        peptide_neutral_mass += deepnovo_config.mass_AA[aa]
+        peptide_neutral_mass += config.mass_AA[aa]
     return peptide_neutral_mass
 
 
@@ -61,7 +61,7 @@ class PeptideCandidate:
 
 def get_num_var_mod(peptide: list) -> int:
     num_var_mod = 0
-    for var_mod_name in deepnovo_config.var_mod_dict.values():
+    for var_mod_name in config.var_mod_dict.values():
         for aa in peptide:
             if aa == var_mod_name:
                 num_var_mod += 1
@@ -75,10 +75,10 @@ class DataBaseSearcher(object):
 
     def __init__(self, db_fasta_file):
         self.db_fasta_file = db_fasta_file
-        self.cleavage_rule = deepnovo_config.cleavage_rule
-        self.num_missed_cleavage = deepnovo_config.num_missed_cleavage
-        self.max_num_mod = deepnovo_config.max_num_mod
-        self.precursor_mass_ppm = deepnovo_config.db_ppm_tolenrance
+        self.cleavage_rule = config.cleavage_rule
+        self.num_missed_cleavage = config.num_missed_cleavage
+        self.max_num_mod = config.max_num_mod
+        self.precursor_mass_ppm = config.db_ppm_tolenrance
 
         logger.info("DataBaseSearcher.__init__(): db_fasta_file = {0:s}".format(self.db_fasta_file))
         logger.info("DataBaseSearcher.__init__(): cleavage_rule = {0:s}".format(self.cleavage_rule))
@@ -112,8 +112,8 @@ class DataBaseSearcher(object):
         """
 
         logger.info("DataBaseSearcher.build_db(): build_db()")
-        fix_mod = "fix_" + '_'.join([str(x) for x in deepnovo_config.fix_mod_dict.keys()])
-        var_mod = "_var_" + '_'.join([str(x) for x in deepnovo_config.var_mod_dict.keys()])
+        fix_mod = "fix_" + '_'.join([str(x) for x in config.fix_mod_dict.keys()])
+        var_mod = "_var_" + '_'.join([str(x) for x in config.var_mod_dict.keys()])
         peptide_db_file = self.db_fasta_file + '.peptide.' + fix_mod + var_mod + '.dnv2' + '.pkl'
         if os.path.exists(peptide_db_file):
             with open(peptide_db_file, 'rb') as f:
@@ -149,7 +149,7 @@ class DataBaseSearcher(object):
                     missed_cleavages=self.num_missed_cleavage)
                 for peptide in cleaved_peptide_set:
                     # semi cleavage
-                    if deepnovo_config.semi_cleavage:
+                    if config.semi_cleavage:
                         for semi_digested_peptide in self.semi_digest(peptide):
                             if any(x in semi_digested_peptide for x in ['X', 'B', 'U', 'Z']):
                                 # skip peptides with undetermined amino acid ['X', 'B', 'U', 'Z']
@@ -168,7 +168,7 @@ class DataBaseSearcher(object):
                             peptide_2_protein_id[peptide].add(protein_id)
 
             peptide_list = [list(peptide) for peptide in peptide_2_protein_id.keys()]
-            peptide_list = [deepnovo_config.fix_mod_peptide_transform(peptide) for peptide in peptide_list]
+            peptide_list = [config.fix_mod_peptide_transform(peptide) for peptide in peptide_list]
 
             peptide_count = len(peptide_list)
 
@@ -199,7 +199,7 @@ class DataBaseSearcher(object):
         :param precursor_mass: should be theoretical neutral mass
         :return: a list of peptides
         """
-        var_mod_peptide_transform = deepnovo_config.var_mod_peptide_transform
+        var_mod_peptide_transform = config.var_mod_peptide_transform
         precursor_mass_tolerance = self.precursor_mass_ppm * precursor_mass * 1e-6
 
         # 1st filter by the peptide mass and the max pepmod mass
@@ -234,7 +234,7 @@ class DataBaseSearcher(object):
             ppm = (precursor_mass - theoretical_mass) / theoretical_mass * 1e6
             num_var_mod = get_num_var_mod(seq)
             # filter based on seq length
-            if len(seq) > deepnovo_config.MAX_LEN - 2:
+            if len(seq) > config.MAX_LEN - 2:
                 continue
             pc = PeptideCandidate(
                 seq=seq,
@@ -247,12 +247,12 @@ class DataBaseSearcher(object):
         if pad_with_random_permutation:
             if len(candidate_list) == 0:
                 return []
-            elif len(candidate_list) > deepnovo_config.normalizing_std_n:
+            elif len(candidate_list) > config.normalizing_std_n:
                 return candidate_list
             else:
                 # if not enought candidate found, include some random permutation samples so that
                 # in total we have more than 150 candidate peptides.
-                num_to_generate = deepnovo_config.normalizing_std_n - len(candidate_list)
+                num_to_generate = config.normalizing_std_n - len(candidate_list)
                 selected_pc_list = np.random.choice(candidate_list, size=num_to_generate, replace=True)
                 random_neg_pc_list = []
                 for pc in selected_pc_list:
