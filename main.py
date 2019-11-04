@@ -92,7 +92,7 @@ def main():
 
 
 if __name__ == '__main__':
-    log_file_name = 'DeepNovo.log'
+    log_file_name = 'PointNovo.log'
     d = {
         'version': 1,
         'disable_existing_loggers': False,  # this fixes the problem

@@ -21,6 +21,8 @@ parser.add_argument("--train_dir", type=str, default="train")
 parser.add_argument("--beam_size", type=int, default="5")
 parser.add_argument("--train", dest="train", action="store_true")
 parser.add_argument("--search_denovo", dest="search_denovo", action="store_true")
+parser.add_argument("--search_db", dest="search_db", action="store_true")
+parser.add_argument("--valid", dest="valid", action="store_true")
 parser.add_argument("--test", dest="test", action="store_true")
 
 parser.set_defaults(train=False)
