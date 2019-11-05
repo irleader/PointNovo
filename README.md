@@ -9,17 +9,17 @@ python >= 3.6
 
 pytorch >= 1.0
 
-dataclasses, biopython, pyteomics
+dataclasses, biopython, pyteomics, cython
 
 For database search you also need to install percolator.
 
 ## data files
 
 The ABRF DDA spectrums file could be downloaded [here](https://drive.google.com/drive/folders/1sS9fTUjcwQukUVCXLzAUufbpR0UjJfSc?usp=sharing).
-The PXD008844 and PXD010559 spectra for training, validation and testing could be found here.
+The PXD008844 and PXD010559 spectra for training, validation and testing and the EThcD NIST antibody sequence data could be found [here](https://1drv.ms/u/s!AvnYi33QHIzqwyaJdF89AneoTVUY?e=BJCHqZ).
 
 
-And the 9 species data could be downloaded [here](ftp://massive.ucsd.edu/MSV000081382/peak/DeepNovo/HighResolution/): ftp://massive.ucsd.edu/MSV000081382/peak/DeepNovo/HighResolution/. 
+And the 9 species data (published by the DeepNovo paper) could be downloaded [here](ftp://massive.ucsd.edu/MSV000081382/peak/DeepNovo/HighResolution/).
 
 It is worth noting that
  in our implementation we represent training samples in a slightly different format (i.e. peptide stored in a csv file and spectrums stored in mgf files).
@@ -27,7 +27,7 @@ It is worth noting that
  
 ## knapsack files
 Like DeepNovo, in PointNovo we also use the knapsack algorithm to further limit the search space. This means when performing de novo sequencing,
-the program needs to either read or create a knapsack matrix based on the selected PTMs (one time computation). Pre-built knapsack matrix files could be found here:
+the program needs to either read or create a knapsack matrix based on the selected PTMs (one time computation). Pre-built knapsack matrix files could be found [here](https://1drv.ms/u/s!AvnYi33QHIzqwyaJdF89AneoTVUY?e=BJCHqZ):
 
 You can use symbolic links to choose which knapsack file to use. i.e.
 
@@ -62,7 +62,9 @@ make test
 
 database search mode:
 
-
+~~~
+make db
+~~~
 
 
 
