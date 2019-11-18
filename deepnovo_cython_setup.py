@@ -1,6 +1,4 @@
-# Copyright 2017 Hieu Tran. All Rights Reserved.
-#
-# DeepNovo is publicly available for non-commercial uses.
+# PointNovo is publicly available for non-commercial uses.
 # ==============================================================================
 
 """TODO(nh2tran): docstring."""
