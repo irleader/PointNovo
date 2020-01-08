@@ -2,7 +2,7 @@
 
 The DeepNovo branch contains a pytorch re-implementation of [DeepNovo](https://github.com/nh2tran/DeepNovo)
 
-The PointNovo branch contains the implementation of our proposed PointNovo model.
+The PointNovo branch contains the implementation of our proposed PointNovo model. The software is tested on Ubuntu 1604/1804.
 
 ## Dependency
 python >= 3.6
@@ -11,7 +11,7 @@ pytorch >= 1.0
 
 dataclasses, biopython, pyteomics, cython
 
-For database search you also need to install percolator.
+For database search you also need to install [percolator](http://percolator.ms/).
 
 ## data files
 
@@ -36,31 +36,38 @@ ln -s fix_C_var_NMQ_knapsack.npy knapsack.npy
 ~~~
 
 ## usage
-first build cython modules
+### first build cython modules
 
 ~~~
 make build
 ~~~
 
-train mode:
+### train mode:
 
 ~~~
 make train
 ~~~
 
-denovo mode:
+On a RTX 2080 Ti GPU it takes around 0.3 seconds to train a batch of 16 annotated spectra. By default the trained model will be saved under ./train directory
+
+
+### denovo mode:
 
 ~~~
 make denovo
 ~~~
 
-evaluate denovo result:
+On a RTX 2080 Ti GPU it takes around 0.4 second to train a batch of 16 annotated spectra
+
+### evaluate denovo result:
 
 ~~~
 make test
 ~~~
 
-database search mode:
+This script is borrowed from the original DeepNovo implementation. It will generate the metrics defined by the paper.
+
+### database search mode:
 
 ~~~
 make db
