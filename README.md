@@ -48,7 +48,7 @@ make build
 make train
 ~~~
 
-On a RTX 2080 Ti GPU it takes around 0.05 seconds to train a batch of 16 annotated spectra. By default the trained model will be saved under ./train directory
+On a RTX 2080 Ti GPU it takes around 0.3 seconds to train a batch of 16 annotated spectra. By default the trained model will be saved under ./train directory
 
 
 ### denovo mode:
@@ -57,7 +57,7 @@ On a RTX 2080 Ti GPU it takes around 0.05 seconds to train a batch of 16 annotat
 make denovo
 ~~~
 
-On a RTX 2080 Ti GPU it takes around 1 second to train a batch of 16 annotated spectra
+On a RTX 2080 Ti GPU it takes around 0.4 second to train a batch of 16 annotated spectra
 
 ### evaluate denovo result:
 
