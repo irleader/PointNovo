@@ -1,6 +1,6 @@
 import torch
-import cProfile
 import subprocess
+import cProfile
 import logging
 import logging.config
 import config
@@ -37,8 +37,8 @@ def main():
         model_wrapper = InferenceModelWrapper(forward_deepnovo, backward_deepnovo, init_net)
         writer = DenovoWriter(config.denovo_output_file)
         start_time = time.time()
-        # denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)
-        cProfile.runctx("denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)", globals(), locals())
+        denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)
+        # cProfile.runctx("denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)", globals(), locals())
         logger.info(f"de novo {len(data_reader)} spectra takes {time.time() - start_time} seconds")
     elif config.FLAGS.valid:
         valid_set = DeepNovoTrainDataset(config.input_feature_file_valid,
