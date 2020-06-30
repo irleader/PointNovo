@@ -1,10 +1,11 @@
 import torch
+import cProfile
 import subprocess
 import logging
 import logging.config
 import config
 from train_func import train, build_model, validation, perplexity
-from data_reader import DeepNovoDenovoDataset, collate_func, DeepNovoTrainDataset, DBSearchDataset
+from data_reader import DeepNovoDenovoDataset, collate_func, DeepNovoTrainDataset, DBSearchDataset, denovo_collate_func
 from db_searcher import DataBaseSearcher
 from psm_ranker import PSMRank
 from model import InferenceModelWrapper
@@ -25,6 +26,10 @@ def main():
         logger.info("denovo mode")
         data_reader = DeepNovoDenovoDataset(feature_filename=config.denovo_input_feature_file,
                                             spectrum_filename=config.denovo_input_spectrum_file)
+        denovo_data_loader = torch.utils.data.DataLoader(dataset=data_reader, batch_size=config.batch_size,
+                                                         shuffle=False,
+                                                         num_workers=config.num_workers,
+                                                         collate_fn=denovo_collate_func)
         denovo_worker = IonCNNDenovo(config.MZ_MAX,
                                      config.knapsack_file,
                                      beam_size=config.FLAGS.beam_size)
@@ -32,7 +37,8 @@ def main():
         model_wrapper = InferenceModelWrapper(forward_deepnovo, backward_deepnovo, init_net)
         writer = DenovoWriter(config.denovo_output_file)
         start_time = time.time()
-        denovo_worker.search_denovo(model_wrapper, data_reader, writer)
+        # denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)
+        cProfile.runctx("denovo_worker.search_denovo(model_wrapper, denovo_data_loader, writer)", globals(), locals())
         logger.info(f"de novo {len(data_reader)} spectra takes {time.time() - start_time} seconds")
     elif config.FLAGS.valid:
         valid_set = DeepNovoTrainDataset(config.input_feature_file_valid,
