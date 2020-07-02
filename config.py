@@ -214,7 +214,7 @@ mass_AA_min = mass_AA["G"]  # 57.02146
 
 MZ_MAX = 5000.0 if FLAGS.search_db else 3000.0
 
-MAX_NUM_PEAK = 1000
+MAX_NUM_PEAK = 500
 
 KNAPSACK_AA_RESOLUTION = 10000  # 0.0001 Da
 mass_AA_min_round = int(round(mass_AA_min * KNAPSACK_AA_RESOLUTION))  # 57.02146
