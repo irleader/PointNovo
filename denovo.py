@@ -6,9 +6,8 @@ import config
 from typing import List
 import numpy as np
 from dataclasses import dataclass
-from model import Direction, InferenceModelWrapper, device
-from deepnovo_cython_modules import get_ion_index
-from data_reader import DeepNovoDenovoDataset, chunks, BatchDenovoData
+from model import Direction, InferenceModelWrapper, device, torch_get_ion_index
+from data_reader import BatchDenovoData
 from writer import BeamSearchedSequence, DenovoWriter, DDAFeature
 
 logger = logging.getLogger(__name__)
@@ -172,7 +171,7 @@ class IonCNNDenovo(object):
 
             # model input
             block_aa_id_input = []
-            block_ion_location = []
+            block_ion_location_param = []
             block_peak_location = []
             block_peak_intensity = []
             block_lstm_h = []
@@ -217,18 +216,19 @@ class IonCNNDenovo(object):
                                                      score=path.score_sum / len(seq))
                             )
                         continue
-
-                    ion_location = get_ion_index(precursor_mass, aa_seq_mass, direction_cint_map[direction])  # [26,8]
+                    if not block_ion_location_param:
+                        block_ion_location_param = [[precursor_mass], [aa_seq_mass], direction_cint_map[direction]]
+                    else:
+                        block_ion_location_param[0].append(precursor_mass)
+                        block_ion_location_param[1].append(aa_seq_mass)
 
                     residual_mass = precursor_mass - aa_seq_mass - config.mass_ID[last_label]
                     knapsack_tolerance = int(round(peak_mass_tolerance * config.KNAPSACK_AA_RESOLUTION))
                     knapsack_candidates = self.knapsack_searcher.search_knapsack(residual_mass, knapsack_tolerance)
-
                     if not knapsack_candidates:
                         # if not possible aa, force it to stop.
                         knapsack_candidates.append(last_label)
 
-                    block_ion_location.append(ion_location)
                     block_aa_id_input.append(aa_id)
                     # get hidden state block
                     block_peak_location.append(original_spectrum_tuple[0])
@@ -248,12 +248,11 @@ class IonCNNDenovo(object):
             # step 3 run model on data blocks to predict next AA.
             #     output is stored in current_log_prob
             # assert block_aa_id_list, 'IonCNNDenovo._beam_search(): aa_id_list is empty.'
-            if not block_ion_location:
+            if not block_ion_location_param:
                 # all search entry finished in the previous step
                 break
 
-            block_ion_location = torch.from_numpy(np.array(block_ion_location)).to(device)  # [batch, 26, 8, 10]
-            block_ion_location = torch.unsqueeze(block_ion_location, dim=1)  # [batch, 1, 26, 8]
+            block_ion_location = torch_get_ion_index(*block_ion_location_param)
             block_peak_location = torch.stack(block_peak_location, dim=0).contiguous()
             block_peak_intensity = torch.stack(block_peak_intensity, dim=0).contiguous()
             if config.use_lstm:
